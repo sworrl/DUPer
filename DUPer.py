@@ -9,14 +9,20 @@ import shutil
 import sys
 
 # Dev Note: --- Global Configurations ---
-SCRIPT_VERSION = "0.3.6-beta"
+SCRIPT_VERSION = "0.3.96-beta"
 DEBUG_MODE = False
 FILE_DIRECTORY = ""
 WORKING_DIRECTORY = ""
 DATABASE_FILE = ""
 MOVE_LOCATION = ""
-CODE_NAME = "Delightful Dengus"
+CODE_NAME = "Flatulent Fairy"
 PROGRESS_INTERVAL = 1
+
+# Dev Note: --- File Extension Lists for Ignoring ---
+FODDER_EXTENSIONS = {'.txt', '.ini'}
+VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm'}
+MUSIC_EXTENSIONS = {'.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a'}
+PICTURE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'}
 
 # Dev Note: --- Utility Functions ---
 def clear_screen():
@@ -143,6 +149,17 @@ def initialize_database(conn):
         )
     """)
 
+    # Initialize default configuration values
+    default_config = {
+        'ignore_fodder': 'True',
+        'ignore_video': 'True',
+        'ignore_music': 'True',
+        'ignore_pictures': 'True',
+        'is_retroarch_roms': 'True'
+    }
+    for key, value in default_config.items():
+        cursor.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)", (key, value))
+
     conn.commit()
     debug_print("Database initialized or already exists.")
 
@@ -207,13 +224,28 @@ def get_file_mod_time(filepath):
     else:
         return None
 
-def process_and_log_file(filepath, conn):
+def process_and_log_file(filepath, conn, ignore_fodder, ignore_video, ignore_music, ignore_pictures):
     filename = os.path.basename(filepath)
     if filename == os.path.basename(__file__):
         return
 
+    extension = os.path.splitext(filename)[1].lower()
+
+    if ignore_fodder and extension in FODDER_EXTENSIONS:
+        debug_print(f"Ignoring fodder file: {filename}")
+        return False
+    if ignore_video and extension in VIDEO_EXTENSIONS:
+        debug_print(f"Ignoring video file: {filename}")
+        return False
+    if ignore_music and extension in MUSIC_EXTENSIONS:
+        debug_print(f"Ignoring music file: {filename}")
+        return False
+    if ignore_pictures and extension in PICTURE_EXTENSIONS:
+        debug_print(f"Ignoring picture file: {filename}")
+        return False
+
     simplified_filename = os.path.splitext(filename)[0]
-    extension = os.path.splitext(filename)[1].lstrip('.')
+    extension_no_dot = extension.lstrip('.')
 
     md5 = calculate_md5(filepath)
     size_mb = get_file_size_mb(filepath)
@@ -227,7 +259,7 @@ def process_and_log_file(filepath, conn):
         cursor.execute("""
             INSERT OR REPLACE INTO files (filepath, filename, md5, simplified_filename, size_mb, created_time, modified_time, extension, is_potential_duplicate)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
-        """, (filepath, filename, md5, simplified_filename, size_mb, create_time, mod_time, extension))
+        """, (filepath, filename, md5, simplified_filename, size_mb, create_time, mod_time, extension_no_dot))
         conn.commit()
         return True
     except sqlite3.Error as e:
@@ -235,18 +267,33 @@ def process_and_log_file(filepath, conn):
         return False
 
 # Dev Note: --- Directory Scanning and Database Update ---
-def scan_and_log_directory(conn):
+def scan_and_log_directory(conn, ignore_fodder, ignore_video, ignore_music, ignore_pictures, is_retroarch_roms):
     debug_print(f"Scanning directory and logging file information in: {FILE_DIRECTORY}")
     start_time = time.time()
     error_count = 0
     error_log = ""
     processed_files = 0
 
-    for root, _, files in os.walk(FILE_DIRECTORY):
-        if root == FILE_DIRECTORY: # Only process files in the top-level directory (as per the first script)
-            for filename in files:
-                file_path = os.path.join(root, filename)
-                if process_and_log_file(file_path, conn):
+    if is_retroarch_roms:
+        for root, _, files in os.walk(FILE_DIRECTORY):
+            num_files = len([f for f in files if os.path.isfile(os.path.join(root, f)) and f != os.path.basename(__file__)])
+            if num_files > 3 or root == FILE_DIRECTORY and num_files > 0: # Scan top level even if less than 3 files
+                for filename in files:
+                    file_path = os.path.join(root, filename)
+                    if os.path.isfile(file_path) and filename != os.path.basename(__file__):
+                        if process_and_log_file(file_path, conn, ignore_fodder, ignore_video, ignore_music, ignore_pictures):
+                            processed_files += 1
+                        else:
+                            error_count += 1
+                            error_log += f"{datetime.now()} - Error processing file '{file_path}'\n"
+
+                        if processed_files % PROGRESS_INTERVAL == 0:
+                            print(f"\rScanning: Processed {processed_files} files...", end="", flush=True)
+    else:
+        for filename in os.listdir(FILE_DIRECTORY):
+            file_path = os.path.join(FILE_DIRECTORY, filename)
+            if os.path.isfile(file_path) and filename != os.path.basename(__file__):
+                if process_and_log_file(file_path, conn, ignore_fodder, ignore_video, ignore_music, ignore_pictures):
                     processed_files += 1
                 else:
                     error_count += 1
@@ -282,10 +329,25 @@ def update_scan_history(conn):
     conn.commit()
     debug_print(f"Updated scan history for '{FILE_DIRECTORY}' to '{now}'.")
 
-def update_database(conn):
+def update_database(conn, ignore_fodder, ignore_video, ignore_music, ignore_pictures):
     debug_print(f"Updating database for directory '{FILE_DIRECTORY}'...")
     start_time = time.time()
-    current_files = set(os.path.join(FILE_DIRECTORY, f) for f in os.listdir(FILE_DIRECTORY) if os.path.isfile(os.path.join(FILE_DIRECTORY, f)))
+    current_files = set()
+    is_retroarch_roms = get_config_from_db(conn, 'is_retroarch_roms') == 'True'
+
+    if is_retroarch_roms:
+        for root, _, files in os.walk(FILE_DIRECTORY):
+            num_files = len([f for f in files if os.path.isfile(os.path.join(root, f)) and f != os.path.basename(__file__)])
+            if num_files > 3 or root == FILE_DIRECTORY and num_files > 0:
+                for filename in files:
+                    file_path = os.path.join(root, filename)
+                    if os.path.isfile(file_path) and filename != os.path.basename(__file__):
+                        current_files.add(file_path)
+    else:
+        for filename in os.listdir(FILE_DIRECTORY):
+            file_path = os.path.join(FILE_DIRECTORY, filename)
+            if os.path.isfile(file_path) and filename != os.path.basename(__file__):
+                current_files.add(file_path)
 
     cursor = conn.cursor()
     cursor.execute("SELECT filepath FROM files WHERE filepath LIKE ?", (FILE_DIRECTORY + '%',))
@@ -298,7 +360,7 @@ def update_database(conn):
     print(f"\nUpdating database:")
     print(f"Adding {len(files_to_add)} new files.")
     for file_path in files_to_add:
-        if process_and_log_file(file_path, conn):
+        if process_and_log_file(file_path, conn, ignore_fodder, ignore_video, ignore_music, ignore_pictures):
             processed_count += 1
             if processed_count % PROGRESS_INTERVAL == 0:
                 print(f"\r  Adding: Processed {processed_count} new files...", end="", flush=True)
@@ -428,7 +490,7 @@ def process_duplicates(conn):
 
     global MOVE_LOCATION
     if not MOVE_LOCATION:
-        MOVE_LOCATION = os.path.join(FILE_DIRECTORY, "duplicates")
+        MOVE_LOCATION = os.path.join(WORKING_DIRECTORY, "duplicates")
 
     if not os.path.exists(MOVE_LOCATION):
         try:
@@ -437,6 +499,19 @@ def process_duplicates(conn):
         except OSError as e:
             print(f"Error creating duplicates directory: {e}")
             return
+
+    # Create a subdirectory within MOVE_LOCATION with the name of the scanned directory
+    scan_directory_name = os.path.basename(FILE_DIRECTORY)
+    moved_subdir = os.path.join(MOVE_LOCATION, scan_directory_name)
+    if not os.path.exists(moved_subdir):
+        try:
+            os.makedirs(moved_subdir)
+            debug_print(f"Created subdirectory for moved files: {moved_subdir}")
+        except OSError as e:
+            print(f"Error creating subdirectory for moved files: {e}")
+            return
+
+    is_retroarch_roms = get_config_from_db(conn, 'is_retroarch_roms') == 'True'
 
     cursor.execute("""
         SELECT md5
@@ -482,14 +557,24 @@ def process_duplicates(conn):
                 if filepath != file_to_keep:
                     try:
                         filename = os.path.basename(filepath)
-                        destination_path = os.path.join(MOVE_LOCATION, filename)
+                        destination_dir = moved_subdir
+
+                        if is_retroarch_roms:
+                            relative_path = os.path.relpath(filepath, FILE_DIRECTORY)
+                            if relative_path != ".": # Ensure we are not at the top level
+                                subdir_components = os.path.dirname(relative_path)
+                                if subdir_components:
+                                    destination_dir = os.path.join(moved_subdir, subdir_components)
+                                    os.makedirs(destination_dir, exist_ok=True)
+
+                        destination_path = os.path.join(destination_dir, filename)
 
                         if os.path.exists(destination_path):
                             base, ext = os.path.splitext(filename)
                             index = 1
-                            while os.path.exists(os.path.join(MOVE_LOCATION, f"{base}_{index}{ext}")):
+                            while os.path.exists(os.path.join(destination_dir, f"{base}_{index}{ext}")):
                                 index += 1
-                            destination_path = os.path.join(MOVE_LOCATION, f"{base}_{index}{ext}")
+                            destination_path = os.path.join(destination_dir, f"{base}_{index}{ext}")
 
                         shutil.move(filepath, destination_path)
                         debug_print(f"Moved duplicate file '{filepath}' to '{destination_path}'")
@@ -508,7 +593,7 @@ def process_duplicates(conn):
                     except OSError as e:
                         print(f"Error moving file '{filepath}': {e}")
 
-    print(f"Moved {moved_count} duplicate files to '{MOVE_LOCATION}'.")
+    print(f"Moved {moved_count} duplicate files to '{moved_subdir}' (and subdirectories).")
 
 # Dev Note: --- Restore Functions ---
 def restore_all_moved_files(conn):
@@ -586,14 +671,14 @@ def show_moved_files(conn):
         print(f"\nNo files have been moved yet.")
         return
 
-    print("+" + "-" * 80 + "+")
-    print(f"| {'Moved Files'.center(80)} |")
-    print("+" + "-" * 80 + "+")
-    print(f"| {'Original Filepath'.ljust(60)} | {'Moved Time'.ljust(18)} |")
-    print("+" + "-" * 80 + "+")
+    print("+" + "-" * 120 + "+")
+    print(f"| {'Moved Files'.center(120)} |")
+    print("+" + "-" * 120 + "+")
+    print(f"| {'Original Filepath'.ljust(60)} | {'Moved To Path'.ljust(60)} | {'Moved Time'.ljust(18)} |")
+    print("+" + "-" * 120 + "+")
     for original, moved_to, moved_time in moved_files:
-        print(f"| {original.ljust(60)} | {moved_time.ljust(18)} |")
-    print("+" + "-" * 80 + "+")
+        print(f"| {original.ljust(60)} | {moved_to.ljust(60)} | {moved_time.ljust(18)} |")
+    print("+" + "-" * 120 + "+")
 
 def calculate_total_size(conn):
     """Calculates the total size of files in the current scan directory from the database."""
@@ -679,9 +764,15 @@ def show_nerd_stats(conn):
 def main_logic(conn):
     script_start_time = time.time()
 
+    ignore_fodder = get_config_from_db(conn, 'ignore_fodder') == 'True'
+    ignore_video = get_config_from_db(conn, 'ignore_video') == 'True'
+    ignore_music = get_config_from_db(conn, 'ignore_music') == 'True'
+    ignore_pictures = get_config_from_db(conn, 'ignore_pictures') == 'True'
+    is_retroarch_roms = get_config_from_db(conn, 'is_retroarch_roms') == 'True'
+
     if has_scanned_before(conn):
         print(f"Directory has been scanned before. Updating database...")
-        update_database(conn)
+        update_database(conn, ignore_fodder, ignore_video, ignore_music, ignore_pictures)
         scan_duration = int(time.time() - script_start_time)
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM files WHERE filepath LIKE ?", (FILE_DIRECTORY + '%',))
@@ -690,7 +781,7 @@ def main_logic(conn):
         error_log = ""
     else:
         print(f"First time scanning this directory. Performing full scan...")
-        scan_duration, errors, error_log, processed_files = scan_and_log_directory(conn)
+        scan_duration, errors, error_log, processed_files = scan_and_log_directory(conn, ignore_fodder, ignore_video, ignore_music, ignore_pictures, is_retroarch_roms)
 
     script_end_time = time.time()
     total_duration = int(script_end_time - script_start_time)
@@ -712,7 +803,12 @@ def config_menu(conn):
         print(f"2. Set Database File: {DATABASE_FILE if DATABASE_FILE else '[Not Set]'}")
         print(f"3. Set Move Location: {MOVE_LOCATION if MOVE_LOCATION else '[Not Set]'}")
         print(f"4. Delete Database")
-        print(f"5. Back to Main Menu")
+        print(f"5. Toggle Ignore Fodder Files (.txt, .ini): {get_config_from_db(conn, 'ignore_fodder')}")
+        print(f"6. Toggle Ignore Video Files ({', '.join(VIDEO_EXTENSIONS)}): {get_config_from_db(conn, 'ignore_video')}")
+        print(f"7. Toggle Ignore Music Files ({', '.join(MUSIC_EXTENSIONS)}): {get_config_from_db(conn, 'ignore_music')}")
+        print(f"8. Toggle Ignore Picture Files ({', '.join(PICTURE_EXTENSIONS)}): {get_config_from_db(conn, 'ignore_pictures')}")
+        print(f"9. Toggle RetroArch ROMs Directory Mode: {get_config_from_db(conn, 'is_retroarch_roms')}")
+        print(f"10. Back to Main Menu")
         print("\nEnter your choice (number only):")
 
         choice = input("> ").strip()
@@ -760,6 +856,26 @@ def config_menu(conn):
                 print(f"Delete operation cancelled.")
                 input(f"Press Enter to continue...")
         elif choice == '5':
+            current_value = get_config_from_db(conn, 'ignore_fodder')
+            new_value = 'False' if current_value == 'True' else 'True'
+            save_config_to_db(conn, 'ignore_fodder', new_value)
+        elif choice == '6':
+            current_value = get_config_from_db(conn, 'ignore_video')
+            new_value = 'False' if current_value == 'True' else 'True'
+            save_config_to_db(conn, 'ignore_video', new_value)
+        elif choice == '7':
+            current_value = get_config_from_db(conn, 'ignore_music')
+            new_value = 'False' if current_value == 'True' else 'True'
+            save_config_to_db(conn, 'ignore_music', new_value)
+        elif choice == '8':
+            current_value = get_config_from_db(conn, 'ignore_pictures')
+            new_value = 'False' if current_value == 'True' else 'True'
+            save_config_to_db(conn, 'ignore_pictures', new_value)
+        elif choice == '9':
+            current_value = get_config_from_db(conn, 'is_retroarch_roms')
+            new_value = 'False' if current_value == 'True' else 'True'
+            save_config_to_db(conn, 'is_retroarch_roms', new_value)
+        elif choice == '10':
             break
         else:
             clear_screen()
@@ -788,6 +904,13 @@ def display_menu(conn):
         print(f"Moved Files Directory: {MOVE_LOCATION if MOVE_LOCATION else '[Not Set]'}")
         print(f"  Total Moved Files (Directory): {total_files_moved_dir}, Total Size (Directory): {format_size(total_size_moved_dir_bytes)}")
         print(f"  Total Moved Files (Database): {moved_files_count}")
+
+        print(f"\nIgnore Settings:")
+        print(f"  Ignore Fodder Files: {get_config_from_db(conn, 'ignore_fodder')}")
+        print(f"  Ignore Video Files: {get_config_from_db(conn, 'ignore_video')}")
+        print(f"  Ignore Music Files: {get_config_from_db(conn, 'ignore_music')}")
+        print(f"  Ignore Picture Files: {get_config_from_db(conn, 'ignore_pictures')}")
+        print(f"  RetroArch ROMs Directory Mode: {get_config_from_db(conn, 'is_retroarch_roms')}")
 
         print(f"\nOptions:")
         print(f"1. Show Moved Files")
@@ -848,7 +971,7 @@ def main():
         print(f"Performing uninstallation steps...")
         print(f"- You might want to remove the working directory:", WORKING_DIRECTORY)
         print(f"- And the database file:", DATABASE_FILE)
-        print(f"- And the moved files directory (if it exists):", MOVE_LOCATION if MOVE_LOCATION else os.path.join(FILE_DIRECTORY, "duplicates"))
+        print(f"- And the moved files directory (if it exists):", MOVE_LOCATION if MOVE_LOCATION else os.path.join(WORKING_DIRECTORY, "duplicates"))
         print(f"- Uninstallation complete.")
         sys.exit(0)
 
@@ -868,16 +991,18 @@ def main():
     if not DATABASE_FILE:
         DATABASE_FILE = os.path.join(WORKING_DIRECTORY, "file_info.sqlite")
 
+    # Check and create necessary directories
+    check_and_create_dirs(WORKING_DIRECTORY)
+
     # Connect to the database
     conn = connect_db(DATABASE_FILE)
     initialize_database(conn)
 
-    # Load configuration from the database
+    # Now load configuration from the database
     WORKING_DIRECTORY = WORKING_DIRECTORY or get_config_from_db(conn, 'working_directory') or default_working_directory
     DATABASE_FILE = DATABASE_FILE or get_config_from_db(conn, 'database_file') or os.path.join(WORKING_DIRECTORY, "file_info.sqlite")
-    MOVE_LOCATION = MOVE_LOCATION or get_config_from_db(conn, 'move_location') or ""
-
-    check_and_create_dirs(WORKING_DIRECTORY)
+    # Set default MOVE_LOCATION to be under WORKING_DIRECTORY
+    MOVE_LOCATION = MOVE_LOCATION or get_config_from_db(conn, 'move_location') or os.path.join(WORKING_DIRECTORY, "duplicates")
 
     # Prompt for FILE_DIRECTORY if not defined or in database
     while not FILE_DIRECTORY:
@@ -899,6 +1024,16 @@ def main():
         save_config_to_db(conn, 'database_file', DATABASE_FILE)
     if get_config_from_db(conn, 'move_location') is None:
         save_config_to_db(conn, 'move_location', MOVE_LOCATION)
+    if get_config_from_db(conn, 'is_retroarch_roms') is None:
+        save_config_to_db(conn, 'is_retroarch_roms', 'True')
+    if get_config_from_db(conn, 'ignore_fodder') is None:
+        save_config_to_db(conn, 'ignore_fodder', 'True')
+    if get_config_from_db(conn, 'ignore_video') is None:
+        save_config_to_db(conn, 'ignore_video', 'True')
+    if get_config_from_db(conn, 'ignore_music') is None:
+        save_config_to_db(conn, 'ignore_music', 'True')
+    if get_config_from_db(conn, 'ignore_pictures') is None:
+        save_config_to_db(conn, 'ignore_pictures', 'True')
 
     print(f"DUPer.py - Version {SCRIPT_VERSION} - {CODE_NAME}")
     print(f"Scanning directory: {FILE_DIRECTORY}")
@@ -912,7 +1047,8 @@ def main():
     main_logic(conn)
     display_menu(conn)
 
-    conn.close()
+    if conn:
+        conn.close()
     print(f"--- DUPer.py Exited ---")
 
 if __name__ == "__main__":
