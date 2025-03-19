@@ -1,9 +1,9 @@
 # DUPer.py - Duplicate File Annihilator 
 ## v0.3.97a-beta (**Code Name: *Dastardly Dog's Dick*)**
 
-[![Version](https://img.shields.io/badge/Version-0.3.97a--beta-blue.svg)](https://github.com/sworrl/duper.py/releases/tag/v0.3.97a-beta")
+[![Version](https://img.shields.io/badge/Version-0.3.97a--beta-blue.svg)](https://github.com/sworrl/duper.py/releases/tag/v0.3.97a-beta)
 
-[![CODENAME](https://img.shields.io/badge/CODENAME-Dastardly_Dogs_Dick-pink.svg)](https://github.com/sworrl/duper.py/releases/tag/Dastardly_Dogs_Dick")
+[![CODENAME](https://img.shields.io/badge/CODENAME-Dastardly_Dogs_Dick-pink.svg)](https://github.com/sworrl/duper.py/releases/tag/Dastardly_Dogs_Dick)
 
 ## Description
 
