@@ -9,6 +9,8 @@
 
 `DUPer.py` is a Python script designed to find and manage duplicate files within a specified directory. It scans the directory, identifies potential duplicates based on filename and MD5 hash, and provides options to move these duplicates to a designated location for review or deletion. The script utilizes a SQLite database to store file information and scan history.
 
+Its main use case is sorting Duplicate ROMs within the directory structure in RetroArch.
+
 ## Features
 
 * **Directory Scanning:** Recursively scans a target directory (with an option for optimized scanning of RetroArch ROM directories).
