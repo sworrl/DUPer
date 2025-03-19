@@ -9,13 +9,13 @@ import shutil
 import sys
 
 # Dev Note: --- Global Configurations ---
-SCRIPT_VERSION = "0.3.5-beta"
+SCRIPT_VERSION = "0.3.6-beta"
 DEBUG_MODE = False
 FILE_DIRECTORY = ""
 WORKING_DIRECTORY = ""
 DATABASE_FILE = ""
 MOVE_LOCATION = ""
-CODE_NAME = "Farting On Files"
+CODE_NAME = "Delightful Dengus"
 PROGRESS_INTERVAL = 1
 
 # Dev Note: --- Utility Functions ---
@@ -46,7 +46,7 @@ def detect_steamos():
 
 # Dev Note: --- Directory Management ---
 def check_and_create_dirs(working_dir):
-    debug_print("Checking and creating necessary directories...")
+    debug_print(f"Checking and creating necessary directories in: {working_dir}")
     if not os.path.exists(working_dir):
         debug_print(f"Creating working directory: {working_dir}")
         try:
@@ -64,9 +64,18 @@ def check_and_create_dirs(working_dir):
             exit(1)
 
 # Dev Note: --- Database Functions ---
-def initialize_database():
-    debug_print("Initializing SQLite database...")
-    conn = sqlite3.connect(DATABASE_FILE)
+def connect_db(db_file):
+    """Connects to the SQLite database."""
+    try:
+        conn = sqlite3.connect(db_file)
+        conn.row_factory = sqlite3.Row  # Access columns by name
+        return conn
+    except sqlite3.Error as e:
+        print(f"Error connecting to database '{db_file}': {e}")
+        sys.exit(1)
+
+def initialize_database(conn):
+    debug_print("Initializing SQLite database schema...")
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -136,13 +145,12 @@ def initialize_database():
 
     conn.commit()
     debug_print("Database initialized or already exists.")
-    return conn
 
 def get_config_from_db(conn, key):
     cursor = conn.cursor()
     cursor.execute("SELECT value FROM config WHERE key=?", (key,))
     result = cursor.fetchone()
-    return result[0] if result else None
+    return result['value'] if result else None
 
 def save_config_to_db(conn, key, value):
     cursor = conn.cursor()
@@ -228,7 +236,7 @@ def process_and_log_file(filepath, conn):
 
 # Dev Note: --- Directory Scanning and Database Update ---
 def scan_and_log_directory(conn):
-    debug_print("Scanning directory and logging file information...")
+    debug_print(f"Scanning directory and logging file information in: {FILE_DIRECTORY}")
     start_time = time.time()
     error_count = 0
     error_log = ""
@@ -255,7 +263,7 @@ def scan_and_log_directory(conn):
     if error_count > 0:
         print(f"Encountered {error_count} errors during file processing.")
         if DEBUG_MODE:
-            print("--- Error Log ---")
+            print(f"--- Error Log ---")
             print(error_log)
         print()
 
@@ -287,7 +295,7 @@ def update_database(conn):
     files_to_remove = db_files - current_files
     processed_count = 0
 
-    print("\nUpdating database:")
+    print(f"\nUpdating database:")
     print(f"Adding {len(files_to_add)} new files.")
     for file_path in files_to_add:
         if process_and_log_file(file_path, conn):
@@ -439,7 +447,7 @@ def process_duplicates(conn):
     """, (FILE_DIRECTORY + '%',))
     duplicate_md5_hashes = [row[0] for row in cursor.fetchall()]
 
-    print("\nProcessing and moving duplicate files...")
+    print(f"\nProcessing and moving duplicate files...")
     moved_count = 0
 
     for md5_hash in duplicate_md5_hashes:
@@ -511,10 +519,10 @@ def restore_all_moved_files(conn):
     errors = 0
 
     if not moved_files:
-        print("\nNo files to restore.")
+        print(f"\nNo files to restore.")
         return
 
-    print("\n--- Restoring All Moved Files ---")
+    print(f"\n--- Restoring All Moved Files ---")
     for move_id, original, moved_to in moved_files:
         try:
             os.rename(moved_to, original)
@@ -536,10 +544,10 @@ def restore_moved_files(conn):
     moved_files = cursor.fetchall()
 
     if not moved_files:
-        print("\nNo files to restore.")
+        print(f"\nNo files to restore.")
         return
 
-    print("\n--- Restore Moved Files ---")
+    print(f"\n--- Restore Moved Files ---")
     for move_id, original, moved_to in moved_files:
         print(f"{move_id}. Restore: {os.path.basename(original)} (from {moved_to})")
 
@@ -564,9 +572,9 @@ def restore_moved_files(conn):
                         found = True
                         break
             if not found:
-                print("Invalid ID. Please try again.")
+                print(f"Invalid ID. Please try again.")
         except ValueError:
-            print("Invalid input. Please enter a number or 'q'.")
+            print(f"Invalid input. Please enter a number or 'q'.")
 
 # Dev Note: --- Information Display Functions ---
 def show_moved_files(conn):
@@ -575,17 +583,17 @@ def show_moved_files(conn):
     moved_files = cursor.fetchall()
 
     if not moved_files:
-        print("\nNo files have been moved yet.")
+        print(f"\nNo files have been moved yet.")
         return
 
-    print("+" + "-" * 60 + "+")
-    print(f"| {'Moved Files'.center(60)} |")
-    print("+" + "-" * 60 + "+")
-    print("| {:<40} | {:<20} |".format("Original Filepath", "Moved Time"))
-    print("+" + "-" * 60 + "+")
+    print("+" + "-" * 80 + "+")
+    print(f"| {'Moved Files'.center(80)} |")
+    print("+" + "-" * 80 + "+")
+    print(f"| {'Original Filepath'.ljust(60)} | {'Moved Time'.ljust(18)} |")
+    print("+" + "-" * 80 + "+")
     for original, moved_to, moved_time in moved_files:
-        print("| {:<40} | {:<20} |".format(original, moved_time))
-    print("+" + "-" * 60 + "+")
+        print(f"| {original.ljust(60)} | {moved_time.ljust(18)} |")
+    print("+" + "-" * 80 + "+")
 
 def calculate_total_size(conn):
     """Calculates the total size of files in the current scan directory from the database."""
@@ -598,11 +606,10 @@ def get_directory_stats(directory):
     total_files = 0
     total_size = 0
     try:
-        for entry in os.listdir(directory):
-            filepath = os.path.join(directory, entry)
-            if os.path.isfile(filepath):
+        for entry in os.scandir(directory):
+            if entry.is_file():
                 total_files += 1
-                total_size += os.path.getsize(filepath)
+                total_size += entry.stat().st_size
         free_space = shutil.disk_usage(directory).free
         return total_files, total_size, free_space
     except FileNotFoundError:
@@ -611,9 +618,9 @@ def get_directory_stats(directory):
 def show_nerd_stats(conn):
     cursor = conn.cursor()
 
-    print("\n--- Nerd Stats ---")
+    print(f"\n--- Nerd Stats ---")
 
-    print("\n--- Scan Metrics ---")
+    print(f"\n--- Scan Metrics ---")
     cursor.execute("SELECT * FROM metrics ORDER BY start_time DESC LIMIT 1")
     metrics = cursor.fetchone()
     if metrics:
@@ -621,9 +628,9 @@ def show_nerd_stats(conn):
         for i, value in enumerate(metrics):
             print(f"{columns[i]}: {value}")
     else:
-        print("No scan metrics available.")
+        print(f"No scan metrics available.")
 
-    print("\n--- File Statistics ---")
+    print(f"\n--- File Statistics ---")
     cursor.execute("SELECT * FROM file_statistics ORDER BY scan_id DESC LIMIT 1")
     file_stats = cursor.fetchone()
     if file_stats:
@@ -633,42 +640,47 @@ def show_nerd_stats(conn):
                 try:
                     duplicate_info = json.loads(value)
                     print(f"{columns[i]}:")
+                    cursor_moved = conn.cursor()
+                    cursor_moved.execute("SELECT original_filepath FROM moved_files")
+                    moved_files_list = [row['original_filepath'] for row in cursor_moved.fetchall()]
+
                     for md5, filepaths in duplicate_info.items():
                         print(f"  MD5: {md5}")
                         for fp in filepaths:
-                            print(f"    - {fp}")
+                            moved_indicator = " [MOVED]" if fp in moved_files_list else ""
+                            print(f"    - {fp}{moved_indicator}")
                 except json.JSONDecodeError:
                     print(f"{columns[i]}: {value}")
             else:
                 print(f"{columns[i]}: {value}")
     else:
-        print("No file statistics available.")
+        print(f"No file statistics available.")
 
-    print("\n--- Scan History ---")
+    print(f"\n--- Scan History ---")
     cursor.execute("SELECT * FROM scan_history")
     scan_history = cursor.fetchall()
     if scan_history:
-        print("{:<20} {:<20}".format("Directory", "Last Scan Time"))
+        print(f"{'Directory'.ljust(20)} {'Last Scan Time'.ljust(20)}")
         print("-" * 40)
         for directory, last_scan_time in scan_history:
-            print("{:<20} {:<20}".format(directory, last_scan_time))
+            print(f"{directory.ljust(20)} {last_scan_time.ljust(20)}")
     else:
-        print("No scan history available.")
+        print(f"No scan history available.")
 
-    print("\n--- Moved Files Summary ---")
+    print(f"\n--- Moved Files Summary ---")
     cursor.execute("SELECT COUNT(*) FROM moved_files")
     moved_count = cursor.fetchone()[0]
     print(f"Total files moved: {moved_count}")
 
     total_size_mb = calculate_total_size(conn)
-    print(f"\nTotal Size of Scanned Files: {format_size(total_size_mb * 1024 * 1024)}") # Convert MB back to bytes for formatting
+    print(f"\nTotal Size of Scanned Files (Database): {format_size(total_size_mb * 1024 * 1024)}")
 
 # Dev Note: --- Main Logic ---
 def main_logic(conn):
     script_start_time = time.time()
 
     if has_scanned_before(conn):
-        print("Directory has been scanned before. Updating database...")
+        print(f"Directory has been scanned before. Updating database...")
         update_database(conn)
         scan_duration = int(time.time() - script_start_time)
         cursor = conn.cursor()
@@ -677,7 +689,7 @@ def main_logic(conn):
         errors = 0
         error_log = ""
     else:
-        print("First time scanning this directory. Performing full scan...")
+        print(f"First time scanning this directory. Performing full scan...")
         scan_duration, errors, error_log, processed_files = scan_and_log_directory(conn)
 
     script_end_time = time.time()
@@ -694,13 +706,13 @@ def config_menu(conn):
     global FILE_DIRECTORY, WORKING_DIRECTORY, DATABASE_FILE, MOVE_LOCATION
     while True:
         clear_screen()
-        print("DUPer.py - Configuration")
-        print("\nOptions:")
+        print(f"DUPer.py - Configuration")
+        print(f"\nOptions:")
         print(f"1. Set Working Directory: {WORKING_DIRECTORY if WORKING_DIRECTORY else '[Not Set]'}")
         print(f"2. Set Database File: {DATABASE_FILE if DATABASE_FILE else '[Not Set]'}")
         print(f"3. Set Move Location: {MOVE_LOCATION if MOVE_LOCATION else '[Not Set]'}")
-        print("4. Delete Database")
-        print("5. Back to Main Menu")
+        print(f"4. Delete Database")
+        print(f"5. Back to Main Menu")
         print("\nEnter your choice (number only):")
 
         choice = input("> ").strip()
@@ -711,15 +723,14 @@ def config_menu(conn):
                 WORKING_DIRECTORY = new_dir
                 save_config_to_db(conn, 'working_directory', WORKING_DIRECTORY)
             else:
-                print("Invalid directory.")
-                input("Press Enter to continue...")
+                print(f"Invalid directory.")
+                input(f"Press Enter to continue...")
         elif choice == '2':
             new_file = input("Enter new database file path: ").strip()
             DATABASE_FILE = new_file
             save_config_to_db(conn, 'database_file', DATABASE_FILE)
-            # Re-initialize database if the file path changes? Might need to restart for full effect.
-            print("Database file path updated. Restart the script for the change to fully take effect.")
-            input("Press Enter to continue...")
+            print(f"Database file path updated. Restart the script for the change to fully take effect.")
+            input(f"Press Enter to continue...")
         elif choice == '3':
             new_location = input("Enter new move location directory: ").strip()
             if os.path.isdir(new_location):
@@ -729,31 +740,31 @@ def config_menu(conn):
                 MOVE_LOCATION = ""
                 save_config_to_db(conn, 'move_location', MOVE_LOCATION)
             else:
-                print("Invalid directory.")
-                input("Press Enter to continue...")
+                print(f"Invalid directory.")
+                input(f"Press Enter to continue...")
         elif choice == '4':
-            confirm = input("Are you sure you want to delete the database? This action is irreversible (y/N): ").strip().lower()
+            confirm = input(f"Are you sure you want to delete the database? This action is irreversible (y/N): ").strip().lower()
             if confirm == 'y':
                 try:
                     os.remove(DATABASE_FILE)
-                    print("Database deleted successfully. The script will re-initialize on the next run.")
-                    input("Press Enter to continue...")
+                    print(f"Database deleted successfully. The script will re-initialize on the next run.")
+                    input(f"Press Enter to continue...")
                     break # Exit config menu after deleting
                 except FileNotFoundError:
-                    print("Database file not found.")
-                    input("Press Enter to continue...")
+                    print(f"Database file not found.")
+                    input(f"Press Enter to continue...")
                 except OSError as e:
                     print(f"Error deleting database: {e}")
-                    input("Press Enter to continue...")
+                    input(f"Press Enter to continue...")
             else:
-                print("Delete operation cancelled.")
-                input("Press Enter to continue...")
+                print(f"Delete operation cancelled.")
+                input(f"Press Enter to continue...")
         elif choice == '5':
             break
         else:
             clear_screen()
-            print("Invalid choice. Please try again.")
-            input("\nPress Enter to return to the Configuration menu...")
+            print(f"Invalid choice. Please try again.")
+            input(f"\nPress Enter to return to the Configuration menu...")
 
 # Dev Note: --- Main Menu ---
 def display_menu(conn):
@@ -762,24 +773,30 @@ def display_menu(conn):
         print(f"DUPer.py - Version {SCRIPT_VERSION} - {CODE_NAME}")
         print(f"Working Directory: {FILE_DIRECTORY}")
 
-        total_files_db = 0
-        total_size_mb_db = calculate_total_size(conn)
+        # Get stats for the scanned directory
+        total_files_scan_dir, total_size_scan_dir_bytes, free_space_scan_dir = get_directory_stats(FILE_DIRECTORY)
 
+        # Get stats for the moved files directory
+        total_files_moved_dir, total_size_moved_dir_bytes, free_space_moved_dir = get_directory_stats(MOVE_LOCATION)
+
+        # Get moved files count from the database
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM files WHERE filepath LIKE ?", (FILE_DIRECTORY + '%',))
-        result = cursor.fetchone()
-        if result:
-            total_files_db = result[0]
+        cursor.execute("SELECT COUNT(*) FROM moved_files")
+        moved_files_count = cursor.fetchone()[0]
 
-        print(f"Total Files: {total_files_db}, Total Size: {format_size(total_size_mb_db * 1024 * 1024)}, Space Left: {format_size(shutil.disk_usage(FILE_DIRECTORY).free)}")
-        print("\nOptions:")
-        print("1. Show Moved Files")
-        print("2. Restore Moved Files")
-        print("3. Restore All Moved Files")
-        print("4. Nerd Stats")
-        print("5. Rescan Directory")
-        print("6. Configuration")
-        print("x. Exit")
+        print(f"Total Files (Directory): {total_files_scan_dir}, Total Size (Directory): {format_size(total_size_scan_dir_bytes)}, Space Left: {format_size(free_space_scan_dir)}")
+        print(f"Moved Files Directory: {MOVE_LOCATION if MOVE_LOCATION else '[Not Set]'}")
+        print(f"  Total Moved Files (Directory): {total_files_moved_dir}, Total Size (Directory): {format_size(total_size_moved_dir_bytes)}")
+        print(f"  Total Moved Files (Database): {moved_files_count}")
+
+        print(f"\nOptions:")
+        print(f"1. Show Moved Files")
+        print(f"2. Restore Moved Files")
+        print(f"3. Restore All Moved Files")
+        print(f"4. Nerd Stats")
+        print(f"5. Rescan Directory")
+        print(f"6. Configuration")
+        print(f"x. Exit")
         print("\nEnter your choice:")
 
         choice = input("> ").strip()
@@ -787,135 +804,108 @@ def display_menu(conn):
         if choice == '1':
             clear_screen()
             show_moved_files(conn)
-            input("\nPress Enter to return to the menu...")
+            input(f"\nPress Enter to return to the menu...")
         elif choice == '2':
             clear_screen()
             restore_moved_files(conn)
-            input("\nPress Enter to return to the menu...")
+            input(f"\nPress Enter to return to the menu...")
         elif choice == '3':
             clear_screen()
             restore_all_moved_files(conn)
-            input("\nPress Enter to return to the menu...")
+            input(f"\nPress Enter to return to the menu...")
         elif choice == '4':
             clear_screen()
             show_nerd_stats(conn)
-            input("\nPress Enter to return to the menu...")
+            input(f"\nPress Enter to return to the menu...")
         elif choice == '5':
             clear_screen()
-            print("Rescanning directory...")
+            print(f"Rescanning directory...")
             main_logic(conn)
-            input("\nPress Enter to return to the menu...")
+            input(f"\nPress Enter to return to the menu...")
         elif choice == '6':
             clear_screen()
             config_menu(conn)
         elif choice.lower() == 'x':
             clear_screen()
-            print("Exiting DUPer.py")
+            print(f"Exiting DUPer.py")
             break
         else:
             clear_screen()
-            print("Invalid choice. Please try again.")
-            input("\nPress Enter to return to the menu...")
+            print(f"Invalid choice. Please try again.")
+            input(f"\nPress Enter to return to the menu...")
 
 # Dev Note: --- Main Script Execution ---
 def main():
     global FILE_DIRECTORY, WORKING_DIRECTORY, DATABASE_FILE, MOVE_LOCATION
 
     if "--install" in sys.argv:
-        print("Performing installation steps...")
-        print("- Creating working directory (if it doesn't exist)...")
-        print("- Initializing database (if it doesn't exist)...")
-        print("- Installation complete.")
+        print(f"Performing installation steps...")
+        print(f"- Creating working directory (if it doesn't exist)...")
+        print(f"- Initializing database (if it doesn't exist)...")
+        print(f"- Installation complete.")
         sys.exit(0)
     elif "--uninstall" in sys.argv:
-        print("Performing uninstallation steps...")
-        print("- You might want to remove the working directory:", WORKING_DIRECTORY)
-        print("- And the database file:", DATABASE_FILE)
-        print("- And the moved files directory (if it exists):", MOVE_LOCATION if MOVE_LOCATION else os.path.join(FILE_DIRECTORY, "duplicates"))
-        print("- Uninstallation complete.")
+        print(f"Performing uninstallation steps...")
+        print(f"- You might want to remove the working directory:", WORKING_DIRECTORY)
+        print(f"- And the database file:", DATABASE_FILE)
+        print(f"- And the moved files directory (if it exists):", MOVE_LOCATION if MOVE_LOCATION else os.path.join(FILE_DIRECTORY, "duplicates"))
+        print(f"- Uninstallation complete.")
         sys.exit(0)
 
+    # --- Startup Configuration ---
     conn = None
-    cursor = None
 
-    # Get configuration from database if it exists (before prompting)
-    temp_conn = sqlite3.connect(":memory:") # Use an in-memory database temporarily
-    temp_cursor = temp_conn.cursor()
-    temp_cursor.execute("""
-        CREATE TABLE IF NOT EXISTS config (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        )
-    """)
-    temp_conn.commit()
+    # Check if configuration is defined in the script
+    default_working_directory = "DUPer_working"
+    default_database_file = ""
+    default_move_location = ""
 
-    def get_config_from_temp_db(key):
-        temp_cursor.execute("SELECT value FROM config WHERE key=?", (key,))
-        result = temp_cursor.fetchone()
-        return result[0] if result else None
+    WORKING_DIRECTORY = WORKING_DIRECTORY or default_working_directory
+    DATABASE_FILE = DATABASE_FILE or default_database_file
+    MOVE_LOCATION = MOVE_LOCATION or default_move_location
 
-    WORKING_DIRECTORY = WORKING_DIRECTORY or get_config_from_temp_db('working_directory')
-    DATABASE_FILE = DATABASE_FILE or get_config_from_temp_db('database_file')
-    MOVE_LOCATION = MOVE_LOCATION or get_config_from_temp_db('move_location')
+    # Determine database file path early
+    if not DATABASE_FILE:
+        DATABASE_FILE = os.path.join(WORKING_DIRECTORY, "file_info.sqlite")
 
-    temp_conn.close()
+    # Connect to the database
+    conn = connect_db(DATABASE_FILE)
+    initialize_database(conn)
 
-    while not FILE_DIRECTORY:
-        default_directory = ""
-        if DATABASE_FILE:
-            try:
-                conn_check = sqlite3.connect(DATABASE_FILE)
-                cursor_check = conn_check.cursor()
-                cursor_check.execute("SELECT directory FROM scan_history ORDER BY last_scan_time DESC LIMIT 1")
-                last_scanned = cursor_check.fetchone()
-                default_directory = last_scanned[0] if last_scanned else ""
-                conn_check.close()
-            except sqlite3.OperationalError:
-                pass # Database might not exist yet
-
-        target_directory = input(f"Enter the directory you want to scan (default: {default_directory} if available): ").strip()
-        FILE_DIRECTORY = target_directory if target_directory else default_directory
-        if os.path.isdir(FILE_DIRECTORY):
-            break
-        else:
-            print("Invalid directory. Please enter a valid directory path.")
-            FILE_DIRECTORY = ""
-
-    while not WORKING_DIRECTORY:
-        default_working_dir = "DUPer_working"
-        WORKING_DIRECTORY_PROMPT = f"Enter the working directory (default: {default_working_dir}): ".strip()
-        entered_dir = input(WORKING_DIRECTORY_PROMPT)
-        WORKING_DIRECTORY = entered_dir if entered_dir else default_working_dir
-        # We'll save this to the actual database later
-        if conn:
-            save_config_to_db(conn, 'working_directory', WORKING_DIRECTORY)
-
-    while not DATABASE_FILE:
-        default_db_file = os.path.join(WORKING_DIRECTORY, "file_info.sqlite")
-        DATABASE_FILE_PROMPT = f"Enter the database file path (default: {default_db_file}): ".strip()
-        entered_file = input(DATABASE_FILE_PROMPT)
-        DATABASE_FILE = entered_file if entered_file else default_db_file
-        # We'll save this to the actual database later
-        if conn:
-            save_config_to_db(conn, 'database_file', DATABASE_FILE)
+    # Load configuration from the database
+    WORKING_DIRECTORY = WORKING_DIRECTORY or get_config_from_db(conn, 'working_directory') or default_working_directory
+    DATABASE_FILE = DATABASE_FILE or get_config_from_db(conn, 'database_file') or os.path.join(WORKING_DIRECTORY, "file_info.sqlite")
+    MOVE_LOCATION = MOVE_LOCATION or get_config_from_db(conn, 'move_location') or ""
 
     check_and_create_dirs(WORKING_DIRECTORY)
 
-    # Now initialize the database after directories are created
-    conn = initialize_database()
-    cursor = conn.cursor()
+    # Prompt for FILE_DIRECTORY if not defined or in database
+    while not FILE_DIRECTORY:
+        db_last_scan_dir = get_config_from_db(conn, 'last_scan_directory')
+        default_directory = db_last_scan_dir if db_last_scan_dir else ""
+        target_directory = input(f"Enter the directory you want to scan (default: {default_directory} if available): ").strip()
+        FILE_DIRECTORY = target_directory if target_directory else default_directory
+        if os.path.isdir(FILE_DIRECTORY):
+            save_config_to_db(conn, 'last_scan_directory', FILE_DIRECTORY)
+            break
+        else:
+            print(f"Invalid directory. Please enter a valid directory path.")
+            FILE_DIRECTORY = ""
 
-    # Load config again from the actual database
-    WORKING_DIRECTORY = WORKING_DIRECTORY or get_config_from_db(conn, 'working_directory')
-    DATABASE_FILE = DATABASE_FILE or get_config_from_db(conn, 'database_file')
-    MOVE_LOCATION = MOVE_LOCATION or get_config_from_db(conn, 'move_location')
+    # Save initial configurations to the database if they weren't already there
+    if get_config_from_db(conn, 'working_directory') is None:
+        save_config_to_db(conn, 'working_directory', WORKING_DIRECTORY)
+    if get_config_from_db(conn, 'database_file') is None:
+        save_config_to_db(conn, 'database_file', DATABASE_FILE)
+    if get_config_from_db(conn, 'move_location') is None:
+        save_config_to_db(conn, 'move_location', MOVE_LOCATION)
 
     print(f"DUPer.py - Version {SCRIPT_VERSION} - {CODE_NAME}")
     print(f"Scanning directory: {FILE_DIRECTORY}")
 
     if detect_steamos():
-        print("\nDetected SteamOS.")
-        print("If you need to modify files in the read-only OS, you might need to unlock it.")
+        print(f"\nDetected SteamOS.")
+        print(f"If you need to modify files in the read-only OS, you might need to unlock it.")
 
     print()
 
@@ -923,7 +913,7 @@ def main():
     display_menu(conn)
 
     conn.close()
-    print("--- DUPer.py Exited ---")
+    print(f"--- DUPer.py Exited ---")
 
 if __name__ == "__main__":
     main()
