@@ -9,17 +9,17 @@ import shutil
 import sys
 
 # Dev Note: --- Global Configurations ---
-SCRIPT_VERSION = "0.3.96-beta"
+SCRIPT_VERSION = "0.3.97a-beta"
 DEBUG_MODE = False
-FILE_DIRECTORY = ""
+TARGET_DIRECTORY = ""
 WORKING_DIRECTORY = ""
 DATABASE_FILE = ""
 MOVE_LOCATION = ""
-CODE_NAME = "Flatulent Fairy"
+CODE_NAME = "Dastardly Dog's Dick"
 PROGRESS_INTERVAL = 1
 
 # Dev Note: --- File Extension Lists for Ignoring ---
-FODDER_EXTENSIONS = {'.txt', '.ini'}
+FODDER_EXTENSIONS = {'.txt', '.ini', '.lua', '.input','.sh' ,'.bat','.nfo'}
 VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm'}
 MUSIC_EXTENSIONS = {'.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a'}
 PICTURE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'}
@@ -175,6 +175,36 @@ def save_config_to_db(conn, key, value):
     conn.commit()
     debug_print(f"Saved config '{key}': '{value}' to database.")
 
+def get_scanned_directory_details(conn, base_directory):
+    cursor = conn.cursor()
+    directory_details = {}
+
+    # Get unique directory paths from the files table that are within the base directory
+    cursor.execute("SELECT DISTINCT SUBSTR(filepath, 1, LENGTH(filepath) - LENGTH(filename) - 1) AS dir_path FROM files WHERE filepath LIKE ? AND dir_path != ?", (base_directory + '%', base_directory))
+    subdirectories = [row['dir_path'] for row in cursor.fetchall()]
+    if base_directory not in directory_details and cursor.execute("SELECT COUNT(*) FROM files WHERE filepath LIKE ?", (base_directory + '%',)).fetchone()[0] > 0:
+        directory_details[base_directory] = {'files': None, 'total_size': 0}
+
+    for subdir in subdirectories:
+        if subdir.startswith(base_directory) and subdir not in directory_details:
+            directory_details[subdir] = {'files': None, 'total_size': 0}
+
+    # Populate file list and total size for each directory
+    for directory in list(directory_details.keys()): # Use a list to iterate over a potentially changing dictionary
+        cursor.execute("SELECT filename, size_mb FROM files WHERE filepath LIKE ?", (directory + '/%',)) # Changed to '/%' to match only direct files in the subdir
+        if directory == base_directory:
+            cursor.execute("SELECT filename, size_mb FROM files WHERE filepath LIKE ? AND filepath NOT LIKE ?", (base_directory + '%', base_directory + '/%'))
+
+        files_in_dir = None
+        total_size_in_dir = 0
+        for row in cursor.fetchall():
+            files_in_dir.append(row['filename'])
+            total_size_in_dir += row['size_mb']
+        directory_details[directory]['files'] = sorted(files_in_dir)
+        directory_details[directory]['total_size'] = total_size_in_dir
+
+    return directory_details
+
 # Dev Note: --- File Information Extraction ---
 def calculate_md5(filepath):
     if os.path.isfile(filepath):
@@ -268,16 +298,16 @@ def process_and_log_file(filepath, conn, ignore_fodder, ignore_video, ignore_mus
 
 # Dev Note: --- Directory Scanning and Database Update ---
 def scan_and_log_directory(conn, ignore_fodder, ignore_video, ignore_music, ignore_pictures, is_retroarch_roms):
-    debug_print(f"Scanning directory and logging file information in: {FILE_DIRECTORY}")
+    debug_print(f"Scanning directory and logging file information in: {TARGET_DIRECTORY}")
     start_time = time.time()
     error_count = 0
     error_log = ""
     processed_files = 0
 
     if is_retroarch_roms:
-        for root, _, files in os.walk(FILE_DIRECTORY):
+        for root, _, files in os.walk(TARGET_DIRECTORY):
             num_files = len([f for f in files if os.path.isfile(os.path.join(root, f)) and f != os.path.basename(__file__)])
-            if num_files > 3 or root == FILE_DIRECTORY and num_files > 0: # Scan top level even if less than 3 files
+            if num_files > 3 or root == TARGET_DIRECTORY and num_files > 0: # Scan top level even if less than 3 files
                 for filename in files:
                     file_path = os.path.join(root, filename)
                     if os.path.isfile(file_path) and filename != os.path.basename(__file__):
@@ -287,11 +317,11 @@ def scan_and_log_directory(conn, ignore_fodder, ignore_video, ignore_music, igno
                             error_count += 1
                             error_log += f"{datetime.now()} - Error processing file '{file_path}'\n"
 
-                        if processed_files % PROGRESS_INTERVAL == 0:
-                            print(f"\rScanning: Processed {processed_files} files...", end="", flush=True)
+                    if processed_files % PROGRESS_INTERVAL == 0:
+                        print(f"\rScanning: Processed {processed_files} files...", end="", flush=True)
     else:
-        for filename in os.listdir(FILE_DIRECTORY):
-            file_path = os.path.join(FILE_DIRECTORY, filename)
+        for filename in os.listdir(TARGET_DIRECTORY):
+            file_path = os.path.join(TARGET_DIRECTORY, filename)
             if os.path.isfile(file_path) and filename != os.path.basename(__file__):
                 if process_and_log_file(file_path, conn, ignore_fodder, ignore_video, ignore_music, ignore_pictures):
                     processed_files += 1
@@ -318,39 +348,39 @@ def scan_and_log_directory(conn, ignore_fodder, ignore_video, ignore_music, igno
 
 def has_scanned_before(conn):
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM scan_history WHERE directory=?", (FILE_DIRECTORY,))
+    cursor.execute("SELECT COUNT(*) FROM scan_history WHERE directory=?", (TARGET_DIRECTORY,))
     count = cursor.fetchone()[0]
     return count > 0
 
 def update_scan_history(conn):
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO scan_history (directory, last_scan_time) VALUES (?, ?)", (FILE_DIRECTORY, now))
+    cursor.execute("INSERT OR REPLACE INTO scan_history (directory, last_scan_time) VALUES (?, ?)", (TARGET_DIRECTORY, now))
     conn.commit()
-    debug_print(f"Updated scan history for '{FILE_DIRECTORY}' to '{now}'.")
+    debug_print(f"Updated scan history for '{TARGET_DIRECTORY}' to '{now}'.")
 
 def update_database(conn, ignore_fodder, ignore_video, ignore_music, ignore_pictures):
-    debug_print(f"Updating database for directory '{FILE_DIRECTORY}'...")
+    debug_print(f"Updating database for directory '{TARGET_DIRECTORY}'...")
     start_time = time.time()
     current_files = set()
     is_retroarch_roms = get_config_from_db(conn, 'is_retroarch_roms') == 'True'
 
     if is_retroarch_roms:
-        for root, _, files in os.walk(FILE_DIRECTORY):
+        for root, _, files in os.walk(TARGET_DIRECTORY):
             num_files = len([f for f in files if os.path.isfile(os.path.join(root, f)) and f != os.path.basename(__file__)])
-            if num_files > 3 or root == FILE_DIRECTORY and num_files > 0:
+            if num_files > 3 or root == TARGET_DIRECTORY and num_files > 0:
                 for filename in files:
                     file_path = os.path.join(root, filename)
                     if os.path.isfile(file_path) and filename != os.path.basename(__file__):
                         current_files.add(file_path)
     else:
-        for filename in os.listdir(FILE_DIRECTORY):
-            file_path = os.path.join(FILE_DIRECTORY, filename)
+        for filename in os.listdir(TARGET_DIRECTORY):
+            file_path = os.path.join(TARGET_DIRECTORY, filename)
             if os.path.isfile(file_path) and filename != os.path.basename(__file__):
                 current_files.add(file_path)
 
     cursor = conn.cursor()
-    cursor.execute("SELECT filepath FROM files WHERE filepath LIKE ?", (FILE_DIRECTORY + '%',))
+    cursor.execute("SELECT filepath FROM files WHERE filepath LIKE ?", (TARGET_DIRECTORY + '%',))
     db_files = set(row[0] for row in cursor.fetchall())
 
     files_to_add = current_files - db_files
@@ -399,7 +429,7 @@ def log_script_metrics(conn, start_time, end_time, scan_duration, errors, error_
         cursor.execute("""
             INSERT INTO metrics (start_time, end_time, scan_duration_seconds, scan_duration_verbose, errors_encountered, error_log, script_version, scan_directory, user, database_path, files_processed)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (scan_start_time_verbose, scan_end_time_verbose, scan_duration, scan_duration_verbose, errors, error_log, SCRIPT_VERSION, FILE_DIRECTORY, os.getlogin(), DATABASE_FILE, files_processed))
+        """, (scan_start_time_verbose, scan_end_time_verbose, scan_duration, scan_duration_verbose, errors, error_log, SCRIPT_VERSION, TARGET_DIRECTORY, os.getlogin(), DATABASE_FILE, files_processed))
         conn.commit()
         debug_print(f"Script metrics logged to database at {db_start_time}.")
     except sqlite3.Error as e:
@@ -409,7 +439,7 @@ def mark_duplicates(conn):
     debug_print("Examining database for duplicate files...")
     cursor = conn.cursor()
 
-    cursor.execute("UPDATE files SET is_potential_duplicate = 0 WHERE filepath LIKE ?", (FILE_DIRECTORY + '%',))
+    cursor.execute("UPDATE files SET is_potential_duplicate = 0 WHERE filepath LIKE ?", (TARGET_DIRECTORY + '%',))
     conn.commit()
 
     cursor.execute("""
@@ -424,7 +454,7 @@ def mark_duplicates(conn):
               AND T1.filepath LIKE ?
               AND T2.filepath LIKE ?
         )
-    """, (os.path.basename(__file__), FILE_DIRECTORY + '%', FILE_DIRECTORY + '%'))
+    """, (os.path.basename(__file__), TARGET_DIRECTORY + '%', TARGET_DIRECTORY + '%'))
     conn.commit()
     debug_print("Finished marking filename duplicates.")
 
@@ -440,7 +470,7 @@ def mark_duplicates(conn):
               AND T1.filepath LIKE ?
               AND T2.filepath LIKE ?
         )
-    """, (FILE_DIRECTORY + '%', FILE_DIRECTORY + '%'))
+    """, (TARGET_DIRECTORY + '%', TARGET_DIRECTORY + '%'))
     conn.commit()
     debug_print("Finished marking MD5 duplicates.")
 
@@ -449,18 +479,18 @@ def analyze_and_log_duplicates(conn):
     start_time = time.time()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT COUNT(*) FROM files WHERE filepath LIKE ?", (FILE_DIRECTORY + '%',))
+    cursor.execute("SELECT COUNT(*) FROM files WHERE filepath LIKE ?", (TARGET_DIRECTORY + '%',))
     total_files = cursor.fetchone()[0]
 
-    cursor.execute("SELECT COUNT(*) FROM files WHERE is_potential_duplicate = 1 AND filepath LIKE ?", (FILE_DIRECTORY + '%',))
+    cursor.execute("SELECT COUNT(*) FROM files WHERE is_potential_duplicate = 1 AND filepath LIKE ?", (TARGET_DIRECTORY + '%',))
     potential_duplicates = cursor.fetchone()[0]
 
     duplicate_info = {}
-    cursor.execute("SELECT md5 FROM files WHERE is_potential_duplicate = 1 AND md5 != '' AND filepath LIKE ? GROUP BY md5 HAVING COUNT(*) > 1", (FILE_DIRECTORY + '%',))
+    cursor.execute("SELECT md5 FROM files WHERE is_potential_duplicate = 1 AND md5 != '' AND filepath LIKE ? GROUP BY md5 HAVING COUNT(*) > 1", (TARGET_DIRECTORY + '%',))
     duplicate_md5s = [row[0] for row in cursor.fetchall()]
 
     for md5 in duplicate_md5s:
-        cursor.execute("SELECT filepath FROM files WHERE md5=? AND filepath LIKE ?", (md5, FILE_DIRECTORY + '%'))
+        cursor.execute("SELECT filepath FROM files WHERE md5=? AND filepath LIKE ?", (md5, TARGET_DIRECTORY + '%'))
         duplicate_info[md5] = [row[0] for row in cursor.fetchall()]
 
     duplicate_info_json = json.dumps(duplicate_info)
@@ -471,7 +501,7 @@ def analyze_and_log_duplicates(conn):
         cursor.execute("""
             INSERT INTO file_statistics (scan_start_time, total_files, potential_duplicates, duplicate_file_info, scan_directory)
             VALUES (?, ?, ?, ?, ?)
-        """, (scan_start_time, total_files, potential_duplicates, duplicate_info_json, FILE_DIRECTORY))
+        """, (scan_start_time, total_files, potential_duplicates, duplicate_info_json, TARGET_DIRECTORY))
         conn.commit()
         debug_print("Duplicate statistics logged.")
     except sqlite3.Error as e:
@@ -501,7 +531,7 @@ def process_duplicates(conn):
             return
 
     # Create a subdirectory within MOVE_LOCATION with the name of the scanned directory
-    scan_directory_name = os.path.basename(FILE_DIRECTORY)
+    scan_directory_name = os.path.basename(TARGET_DIRECTORY)
     moved_subdir = os.path.join(MOVE_LOCATION, scan_directory_name)
     if not os.path.exists(moved_subdir):
         try:
@@ -519,7 +549,7 @@ def process_duplicates(conn):
         WHERE is_potential_duplicate = 1 AND md5 != '' AND filepath LIKE ?
         GROUP BY md5
         HAVING COUNT(*) > 1
-    """, (FILE_DIRECTORY + '%',))
+    """, (TARGET_DIRECTORY + '%',))
     duplicate_md5_hashes = [row[0] for row in cursor.fetchall()]
 
     print(f"\nProcessing and moving duplicate files...")
@@ -530,7 +560,7 @@ def process_duplicates(conn):
             SELECT filepath, simplified_filename, size_mb
             FROM files
             WHERE md5=? AND filepath LIKE ?
-        """, (md5_hash, FILE_DIRECTORY + '%'))
+        """, (md5_hash, TARGET_DIRECTORY + '%'))
         duplicate_files_data = cursor.fetchall()
 
         if len(duplicate_files_data) > 1:
@@ -560,7 +590,7 @@ def process_duplicates(conn):
                         destination_dir = moved_subdir
 
                         if is_retroarch_roms:
-                            relative_path = os.path.relpath(filepath, FILE_DIRECTORY)
+                            relative_path = os.path.relpath(filepath, TARGET_DIRECTORY)
                             if relative_path != ".": # Ensure we are not at the top level
                                 subdir_components = os.path.dirname(relative_path)
                                 if subdir_components:
@@ -596,6 +626,8 @@ def process_duplicates(conn):
     print(f"Moved {moved_count} duplicate files to '{moved_subdir}' (and subdirectories).")
 
 # Dev Note: --- Restore Functions ---
+# In the 'Restore Functions' section:
+
 def restore_all_moved_files(conn):
     cursor = conn.cursor()
     cursor.execute("SELECT move_id, original_filepath, moved_to_path FROM moved_files")
@@ -610,7 +642,7 @@ def restore_all_moved_files(conn):
     print(f"\n--- Restoring All Moved Files ---")
     for move_id, original, moved_to in moved_files:
         try:
-            os.rename(moved_to, original)
+            shutil.move(moved_to, original)  # Use shutil.move instead of os.rename
             cursor.execute("DELETE FROM moved_files WHERE move_id=?", (move_id,))
             conn.commit()
             restored_count += 1
@@ -646,7 +678,7 @@ def restore_moved_files(conn):
             for move_id, original, moved_to in moved_files:
                 if move_id == move_id_to_restore:
                     try:
-                        os.rename(moved_to, original)
+                        shutil.move(moved_to, original)  # Use shutil.move instead of os.rename
                         cursor.execute("DELETE FROM moved_files WHERE move_id=?", (move_id_to_restore,))
                         conn.commit()
                         print(f"Restored '{os.path.basename(original)}' to '{original}'.")
@@ -683,7 +715,7 @@ def show_moved_files(conn):
 def calculate_total_size(conn):
     """Calculates the total size of files in the current scan directory from the database."""
     cursor = conn.cursor()
-    cursor.execute("SELECT SUM(size_mb) FROM files WHERE filepath LIKE ?", (FILE_DIRECTORY + '%',))
+    cursor.execute("SELECT SUM(size_mb) FROM files WHERE filepath LIKE ?", (TARGET_DIRECTORY + '%',))
     total_size_mb = cursor.fetchone()[0]
     return total_size_mb if total_size_mb is not None else 0
 
@@ -758,7 +790,7 @@ def show_nerd_stats(conn):
     print(f"Total files moved: {moved_count}")
 
     total_size_mb = calculate_total_size(conn)
-    print(f"\nTotal Size of Scanned Files (Database): {format_size(total_size_mb * 1024 * 1024)}")
+    print(f"\nTotal Size of Scanned Files (Info From Database): {format_size(total_size_mb * 1024 * 1024)}")
 
 # Dev Note: --- Main Logic ---
 def main_logic(conn):
@@ -775,7 +807,7 @@ def main_logic(conn):
         update_database(conn, ignore_fodder, ignore_video, ignore_music, ignore_pictures)
         scan_duration = int(time.time() - script_start_time)
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM files WHERE filepath LIKE ?", (FILE_DIRECTORY + '%',))
+        cursor.execute("SELECT COUNT(*) FROM files WHERE filepath LIKE ?", (TARGET_DIRECTORY + '%',))
         processed_files = cursor.fetchone()[0]
         errors = 0
         error_log = ""
@@ -794,7 +826,7 @@ def main_logic(conn):
 
 # Dev Note: --- Configuration Menu ---
 def config_menu(conn):
-    global FILE_DIRECTORY, WORKING_DIRECTORY, DATABASE_FILE, MOVE_LOCATION
+    global TARGET_DIRECTORY, WORKING_DIRECTORY, DATABASE_FILE, MOVE_LOCATION
     while True:
         clear_screen()
         print(f"DUPer.py - Configuration")
@@ -887,10 +919,10 @@ def display_menu(conn):
     while True:
         clear_screen()
         print(f"DUPer.py - Version {SCRIPT_VERSION} - {CODE_NAME}")
-        print(f"Working Directory: {FILE_DIRECTORY}")
+        print(f"Working Directory: {TARGET_DIRECTORY}")
 
         # Get stats for the scanned directory
-        total_files_scan_dir, total_size_scan_dir_bytes, free_space_scan_dir = get_directory_stats(FILE_DIRECTORY)
+        total_files_scan_dir, total_size_scan_dir_bytes, free_space_scan_dir = get_directory_stats(TARGET_DIRECTORY)
 
         # Get stats for the moved files directory
         total_files_moved_dir, total_size_moved_dir_bytes, free_space_moved_dir = get_directory_stats(MOVE_LOCATION)
@@ -959,7 +991,7 @@ def display_menu(conn):
 
 # Dev Note: --- Main Script Execution ---
 def main():
-    global FILE_DIRECTORY, WORKING_DIRECTORY, DATABASE_FILE, MOVE_LOCATION
+    global TARGET_DIRECTORY, WORKING_DIRECTORY, DATABASE_FILE, MOVE_LOCATION
 
     if "--install" in sys.argv:
         print(f"Performing installation steps...")
@@ -1004,18 +1036,18 @@ def main():
     # Set default MOVE_LOCATION to be under WORKING_DIRECTORY
     MOVE_LOCATION = MOVE_LOCATION or get_config_from_db(conn, 'move_location') or os.path.join(WORKING_DIRECTORY, "duplicates")
 
-    # Prompt for FILE_DIRECTORY if not defined or in database
-    while not FILE_DIRECTORY:
+    # Prompt for TARGET_DIRECTORY if not defined or in database
+    while not TARGET_DIRECTORY:
         db_last_scan_dir = get_config_from_db(conn, 'last_scan_directory')
         default_directory = db_last_scan_dir if db_last_scan_dir else ""
-        target_directory = input(f"Enter the directory you want to scan (default: {default_directory} if available): ").strip()
-        FILE_DIRECTORY = target_directory if target_directory else default_directory
-        if os.path.isdir(FILE_DIRECTORY):
-            save_config_to_db(conn, 'last_scan_directory', FILE_DIRECTORY)
+        target_directory = input(f"Enter the target directory you want to scan (Saved Value=: {default_directory} if not first run: ").strip()
+        TARGET_DIRECTORY = target_directory if target_directory else default_directory
+        if os.path.isdir(TARGET_DIRECTORY):
+            save_config_to_db(conn, 'last_scan_directory', TARGET_DIRECTORY)
             break
         else:
-            print(f"Invalid directory. Please enter a valid directory path.")
-            FILE_DIRECTORY = ""
+            print(f"Invalid directory. Please enter a valid target directory path.")
+            TARGET_DIRECTORY = ""
 
     # Save initial configurations to the database if they weren't already there
     if get_config_from_db(conn, 'working_directory') is None:
@@ -1036,7 +1068,7 @@ def main():
         save_config_to_db(conn, 'ignore_pictures', 'True')
 
     print(f"DUPer.py - Version {SCRIPT_VERSION} - {CODE_NAME}")
-    print(f"Scanning directory: {FILE_DIRECTORY}")
+    print(f"Scanning directory: {TARGET_DIRECTORY}")
 
     if detect_steamos():
         print(f"\nDetected SteamOS.")
