@@ -1,5 +1,5 @@
 # DUPer.py - Duplicate File Annihilator 
-## v0.3.97a-beta (**Code Name: *Dastardly Dog's Dick*)**
+## v0.3.97b-beta (**Code Name: *Dastardly Dog's Dick*)**
 
 [![Version](https://img.shields.io/badge/Version-0.3.97b--beta-blue.svg)](https://github.com/sworrl/DUPer/releases/tag/v0.3.97b-beta)
 
