@@ -9,7 +9,7 @@ import shutil
 import sys
 
 # Dev Note: --- Global Configurations ---
-SCRIPT_VERSION = "0.3.97a-beta"
+SCRIPT_VERSION = "0.3.97b-beta"
 DEBUG_MODE = False
 TARGET_DIRECTORY = ""
 WORKING_DIRECTORY = ""
@@ -19,7 +19,7 @@ CODE_NAME = "Dastardly Dog's Dick"
 PROGRESS_INTERVAL = 1
 
 # Dev Note: --- File Extension Lists for Ignoring ---
-FODDER_EXTENSIONS = {'.txt', '.ini', '.lua', '.input','.sh' ,'.bat','.nfo'}
+FODDER_EXTENSIONS = {'.txt', '.ini', '.lua', '.input','.sh' ,'.bat','.nfo','.exe','.html'}
 VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm'}
 MUSIC_EXTENSIONS = {'.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a'}
 PICTURE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'}
@@ -74,7 +74,7 @@ def connect_db(db_file):
     """Connects to the SQLite database."""
     try:
         conn = sqlite3.connect(db_file)
-        conn.row_factory = sqlite3.Row  # Access columns by name
+        conn.row_factory = sqlite3.Row # Access columns by name
         return conn
     except sqlite3.Error as e:
         print(f"Error connecting to database '{db_file}': {e}")
@@ -557,7 +557,7 @@ def process_duplicates(conn):
 
     for md5_hash in duplicate_md5_hashes:
         cursor.execute("""
-            SELECT filepath, simplified_filename, size_mb
+            SELECT filepath, filename, simplified_filename, size_mb
             FROM files
             WHERE md5=? AND filepath LIKE ?
         """, (md5_hash, TARGET_DIRECTORY + '%'))
@@ -565,28 +565,45 @@ def process_duplicates(conn):
 
         if len(duplicate_files_data) > 1:
             scores = {}
-            min_size = min(data[2] for data in duplicate_files_data) if duplicate_files_data else 0
-            shortest_name_len = min(len(data[1]) for data in duplicate_files_data) if duplicate_files_data else float('inf')
-            first_alphabetically = min(data[1] for data in duplicate_files_data) if duplicate_files_data else ""
+            min_size = min(data['size_mb'] for data in duplicate_files_data) if duplicate_files_data else 0
+            shortest_name_len = min(len(data['simplified_filename']) for data in duplicate_files_data) if duplicate_files_data else float('inf')
+            first_alphabetically = min(data['simplified_filename'] for data in duplicate_files_data) if duplicate_files_data else ""
 
-            for filepath, simplified_filename, size_mb in duplicate_files_data:
+            for row in duplicate_files_data:
+                filepath = row['filepath']
+                filename = row['filename']
+                simplified_filename = row['simplified_filename']
+                size_mb = row['size_mb']
                 score = 0
 
+                # Prioritize filenames with spaces (more likely to be human-readable)
+                if ' ' in filename:
+                    score += 5
+
+                # Prioritize longer filenames (more descriptive)
+                score += len(simplified_filename) * 0.1 # Give a small score boost for length
+
+                # Penalize shorter, potentially less descriptive names (adjust multiplier as needed)
+                if len(simplified_filename) < shortest_name_len + 5: # Allow a small tolerance
+                    score -= 2
+
+                # Original criteria - consider reducing their weight
                 if len(simplified_filename) == shortest_name_len:
-                    score += 3
-                if simplified_filename == first_alphabetically:
-                    score += 2
-                if size_mb == min_size and min_size > 0:
                     score += 1
+                if simplified_filename == first_alphabetically:
+                    score += 1
+                if size_mb == min_size and min_size > 0:
+                    score += 0.5 # Reduced weight for size
 
                 scores[filepath] = score
 
             file_to_keep = max(scores, key=scores.get)
 
-            for filepath, _, _ in duplicate_files_data:
+            for row in duplicate_files_data:
+                filepath = row['filepath']
+                filename = row['filename']
                 if filepath != file_to_keep:
                     try:
-                        filename = os.path.basename(filepath)
                         destination_dir = moved_subdir
 
                         if is_retroarch_roms:
@@ -642,7 +659,7 @@ def restore_all_moved_files(conn):
     print(f"\n--- Restoring All Moved Files ---")
     for move_id, original, moved_to in moved_files:
         try:
-            shutil.move(moved_to, original)  # Use shutil.move instead of os.rename
+            shutil.move(moved_to, original) # Use shutil.move instead of os.rename
             cursor.execute("DELETE FROM moved_files WHERE move_id=?", (move_id,))
             conn.commit()
             restored_count += 1
@@ -678,7 +695,7 @@ def restore_moved_files(conn):
             for move_id, original, moved_to in moved_files:
                 if move_id == move_id_to_restore:
                     try:
-                        shutil.move(moved_to, original)  # Use shutil.move instead of os.rename
+                        shutil.move(moved_to, original) # Use shutil.move instead of os.rename
                         cursor.execute("DELETE FROM moved_files WHERE move_id=?", (move_id_to_restore,))
                         conn.commit()
                         print(f"Restored '{os.path.basename(original)}' to '{original}'.")
@@ -835,7 +852,7 @@ def config_menu(conn):
         print(f"2. Set Database File: {DATABASE_FILE if DATABASE_FILE else '[Not Set]'}")
         print(f"3. Set Move Location: {MOVE_LOCATION if MOVE_LOCATION else '[Not Set]'}")
         print(f"4. Delete Database")
-        print(f"5. Toggle Ignore Fodder Files (.txt, .ini): {get_config_from_db(conn, 'ignore_fodder')}")
+        print(f"5. Toggle Ignore Fodder Files ({', '.join(FODDER_EXTENSIONS)}): {get_config_from_db(conn, 'ignore_fodder')}")
         print(f"6. Toggle Ignore Video Files ({', '.join(VIDEO_EXTENSIONS)}): {get_config_from_db(conn, 'ignore_video')}")
         print(f"7. Toggle Ignore Music Files ({', '.join(MUSIC_EXTENSIONS)}): {get_config_from_db(conn, 'ignore_music')}")
         print(f"8. Toggle Ignore Picture Files ({', '.join(PICTURE_EXTENSIONS)}): {get_config_from_db(conn, 'ignore_pictures')}")
@@ -1040,7 +1057,7 @@ def main():
     while not TARGET_DIRECTORY:
         db_last_scan_dir = get_config_from_db(conn, 'last_scan_directory')
         default_directory = db_last_scan_dir if db_last_scan_dir else ""
-        target_directory = input(f"Enter the target directory you want to scan (Saved Value=: {default_directory} if not first run: ").strip()
+        target_directory = input(f"Enter the target directory you want to scan (Saved Value=: {default_directory} ").strip()
         TARGET_DIRECTORY = target_directory if target_directory else default_directory
         if os.path.isdir(TARGET_DIRECTORY):
             save_config_to_db(conn, 'last_scan_directory', TARGET_DIRECTORY)
