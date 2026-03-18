@@ -1,0 +1,90 @@
+# DUPer Systemd Service Templates
+#
+# This file contains two service units:
+#   1. duper.service          - Main DUPer API server
+#   2. duper-watchdog.service - Acquisition watchdog daemon
+#
+# Installation (user services):
+#   1. Copy duper.service to ~/.config/systemd/user/duper.service
+#   2. Copy duper-watchdog.service to ~/.config/systemd/user/duper-watchdog.service
+#   3. Edit paths and settings as needed
+#   4. Run: systemctl --user daemon-reload
+#   5. Run: systemctl --user enable duper duper-watchdog
+#   6. Run: systemctl --user start duper duper-watchdog
+#
+# Or use the deploy script which handles all of this:
+#   ./scripts/deploy.py install
+#
+# For system-wide service, copy to /etc/systemd/system/ and adjust User/Group
+
+# ============================================================================
+# DUPer Main Server
+# ============================================================================
+
+# --- ~/.config/systemd/user/duper.service ---
+
+[Unit]
+Description=DUPer - ROM Collection Manager
+Documentation=https://github.com/eurrl/DUPer
+After=network.target
+
+[Service]
+Type=simple
+
+# For user service, these are automatically set
+# User=YOUR_USERNAME
+# Group=YOUR_USERNAME
+
+# Environment
+Environment=HOME=%h
+# Uncomment and set your API key:
+# Environment=DUPER_API_KEY=your-api-key-here
+
+# Command to run
+# Option 1: If installed via pip / deploy.py
+ExecStart=%h/.local/bin/duper serve --host 0.0.0.0 --port 8420
+
+# Option 2: If running from venv directly
+# ExecStart=%h/.local/share/duper/venv/bin/python -m duper serve --host 0.0.0.0 --port 8420
+
+# Option 3: If running from source
+# ExecStart=/usr/bin/python3 -m duper serve --host 0.0.0.0 --port 8420
+
+# Restart policy
+Restart=on-failure
+RestartSec=5
+
+# Security hardening (optional, uncomment as needed)
+# NoNewPrivileges=true
+# ProtectSystem=strict
+# ProtectHome=read-only
+# ReadWritePaths=%h/.local/share/duper %h/.config/duper
+
+[Install]
+WantedBy=default.target
+
+
+# ============================================================================
+# DUPer Acquisition Watchdog
+# ============================================================================
+
+# --- ~/.config/systemd/user/duper-watchdog.service ---
+
+# [Unit]
+# Description=DUPer Acquisition Watchdog - Continuous background downloading
+# Documentation=https://github.com/eurrl/DUPer
+# After=network.target duper.service
+# Wants=duper.service
+#
+# [Service]
+# Type=simple
+# Environment=HOME=%h
+#
+# ExecStart=%h/.local/bin/duper-acquisition-watchdog.sh
+#
+# # Longer restart delay for watchdog - it polls for work
+# Restart=on-failure
+# RestartSec=30
+#
+# [Install]
+# WantedBy=default.target

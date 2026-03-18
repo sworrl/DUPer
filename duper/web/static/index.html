@@ -1,0 +1,1501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DUPer - ROM Collection Manager</title>
+    <link rel="icon" type="image/x-icon" href="img/favicon.ico">
+    <link rel="icon" type="image/png" href="img/favicon.png">
+    <link rel="apple-touch-icon" href="img/duper_icon_200.webp">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-brand">
+                <img src="img/duper_icon_200.webp" alt="DUPer" class="header-logo">
+                <div class="header-text">
+                    <h1>DUPer</h1>
+                    <p class="subtitle">ROM Collection Manager</p>
+                </div>
+            </div>
+            <div class="library-selector">
+                <label for="library-select">Library:</label>
+                <select id="library-select" onchange="app.switchLibrary(this.value)">
+                    <option value="">Loading...</option>
+                </select>
+                <button class="btn btn-small" onclick="app.showNewLibraryModal()" title="Create New Library">+</button>
+            </div>
+            <div id="connection-status" class="status"></div>
+        </header>
+
+        <nav>
+            <button class="nav-btn active" data-view="dashboard">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                <span>Dashboard</span>
+            </button>
+            <button class="nav-btn" data-view="retronas">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1" fill="currentColor"/><circle cx="6" cy="18" r="1" fill="currentColor"/><line x1="10" y1="6" x2="18" y2="6"/><line x1="10" y1="18" x2="18" y2="18"/></svg>
+                <span>RetroNAS</span>
+            </button>
+            <button class="nav-btn" data-view="acquisition">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Acquisition</span>
+                <span class="nav-badge" id="nav-acq-badge"></span>
+            </button>
+            <button class="nav-btn" data-view="games">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/><line x1="6" y1="10" x2="6" y2="14"/><line x1="4" y1="12" x2="8" y2="12"/><circle cx="16" cy="12" r="1.5"/><circle cx="19" cy="10" r="1.5"/></svg>
+                <span>Games</span>
+            </button>
+            <button class="nav-btn" data-view="devices">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+                <span>Devices</span>
+            </button>
+            <button class="nav-btn" data-view="scan">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <span>Scan</span>
+            </button>
+            <button class="nav-btn" data-view="config">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+                <span>Config</span>
+            </button>
+        </nav>
+
+        <main>
+            <!-- Dashboard View -->
+            <section id="dashboard-view" class="view active">
+                <!-- XP / Level Bar -->
+                <div class="gamer-profile-bar" id="gamer-profile-bar">
+                    <div class="gamer-level-badge" id="gamer-level-badge">
+                        <svg class="gamer-level-ring" viewBox="0 0 60 60">
+                            <circle class="ring-bg" cx="30" cy="30" r="26" fill="none" stroke="var(--border)" stroke-width="4"/>
+                            <circle class="ring-fill" id="gamer-xp-ring" cx="30" cy="30" r="26" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linecap="round" stroke-dasharray="163.4" stroke-dashoffset="163.4" transform="rotate(-90 30 30)"/>
+                        </svg>
+                        <span class="gamer-level-num" id="gamer-level-num">1</span>
+                    </div>
+                    <div class="gamer-info">
+                        <div class="gamer-rank-title" id="gamer-rank-title">Apprentice</div>
+                        <div class="gamer-xp-bar-wrap">
+                            <div class="gamer-xp-bar">
+                                <div class="gamer-xp-fill" id="gamer-xp-fill"></div>
+                            </div>
+                            <span class="gamer-xp-text" id="gamer-xp-text">0 / 100 XP</span>
+                        </div>
+                    </div>
+                    <div class="gamer-streak" id="gamer-streak" title="Play streak">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67z"/></svg>
+                        <span id="gamer-streak-count">0</span>
+                        <span class="gamer-streak-label">day streak</span>
+                    </div>
+                </div>
+
+                <!-- Hero Stats Row -->
+                <div class="hero-stats-row" id="hero-stats-row">
+                    <div class="hero-stat-card" data-stat="games">
+                        <div class="hero-stat-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/></svg>
+                        </div>
+                        <div class="hero-stat-value counter-animate" id="hero-total-games">0</div>
+                        <div class="hero-stat-label">Total Games</div>
+                    </div>
+                    <div class="hero-stat-card" data-stat="playtime">
+                        <div class="hero-stat-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        </div>
+                        <div class="hero-stat-value counter-animate" id="hero-total-playtime">0h</div>
+                        <div class="hero-stat-label">Play Time</div>
+                    </div>
+                    <div class="hero-stat-card" data-stat="achievements">
+                        <div class="hero-stat-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        </div>
+                        <div class="hero-stat-value counter-animate" id="hero-total-achievements">0</div>
+                        <div class="hero-stat-label">Achievements</div>
+                    </div>
+                    <div class="hero-stat-card" data-stat="systems">
+                        <div class="hero-stat-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                        </div>
+                        <div class="hero-stat-value counter-animate" id="hero-total-systems">0</div>
+                        <div class="hero-stat-label">Systems</div>
+                    </div>
+                    <div class="hero-stat-card" data-stat="completion">
+                        <div class="hero-stat-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        </div>
+                        <div class="hero-stat-value counter-animate" id="hero-completion-pct">0%</div>
+                        <div class="hero-stat-label">Completion</div>
+                    </div>
+                </div>
+
+                <!-- Gaming Activity Panel -->
+                <div class="gaming-activity-panel" id="gaming-activity">
+                    <div class="gaming-activity-grid">
+                        <!-- Now Playing / Last Played Game -->
+                        <div class="last-played-card glass-card" id="last-played-card">
+                            <div class="last-played-header">
+                                <div class="lp-icon-wrap">
+                                    <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                                        <path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 id="lp-status-label">Now Playing</h3>
+                                    <span class="lp-time" id="lp-time">--</span>
+                                </div>
+                                <div class="lp-live-dot" id="lp-live-dot" title="Live"></div>
+                            </div>
+                            <div class="lp-cover-art" id="lp-cover-art">
+                                <div class="lp-cover-placeholder">
+                                    <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" opacity="0.15"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/></svg>
+                                </div>
+                            </div>
+                            <div class="lp-live-feed" id="lp-live-feed" style="display:none">
+                                <img id="lp-live-img" src="" alt="Live feed" style="width:100%;border-radius:8px;">
+                                <div class="lp-live-badge">LIVE</div>
+                            </div>
+                            <div class="lp-game-info">
+                                <div class="lp-game-title" id="lp-game-title">--</div>
+                                <div class="lp-game-meta">
+                                    <span class="lp-system-badge" id="lp-system">--</span>
+                                    <span class="lp-detail" id="lp-genre"></span>
+                                </div>
+                                <div class="lp-meta-extra" id="lp-meta-extra">
+                                    <span class="lp-meta-item" id="lp-publisher-wrap" style="display:none"><span class="lp-meta-label">PUB</span> <span id="lp-publisher"></span></span>
+                                    <span class="lp-meta-item" id="lp-developer-wrap"><span class="lp-meta-label">DEV</span> <span id="lp-developer">--</span></span>
+                                </div>
+                                <div class="lp-play-stats">
+                                    <div class="lp-play-stat">
+                                        <span class="lp-play-stat-val" id="lp-playcount">0</span>
+                                        <span class="lp-play-stat-lbl">Sessions</span>
+                                    </div>
+                                    <div class="lp-play-stat">
+                                        <span class="lp-play-stat-val" id="lp-playtime">--</span>
+                                        <span class="lp-play-stat-lbl">Play Time</span>
+                                    </div>
+                                    <div class="lp-play-stat">
+                                        <span class="lp-play-stat-val" id="lp-rating-val">--</span>
+                                        <span class="lp-play-stat-lbl">Rating</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- RA game progress for this specific game -->
+                            <div class="lp-ra-progress" id="lp-ra-progress" style="display:none">
+                                <div class="lp-ra-header">
+                                    <svg viewBox="0 0 24 24" width="12" height="12" fill="#ffc72c"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                    <span>RetroAchievements</span>
+                                    <a class="lp-ra-link" id="lp-ra-link" href="#" target="_blank" rel="noopener" title="View on RetroAchievements">
+                                        <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                    </a>
+                                </div>
+                                <div class="lp-ra-bar-wrap">
+                                    <div class="lp-ra-bar" id="lp-ra-bar"></div>
+                                </div>
+                                <div class="lp-ra-stats">
+                                    <span id="lp-ra-earned">0</span> / <span id="lp-ra-total">0</span> achievements
+                                    <span class="lp-ra-pct" id="lp-ra-pct"></span>
+                                </div>
+                            </div>
+                            <div class="lp-recently-list" id="lp-recently-list">
+                                <!-- Filled by JS -->
+                            </div>
+                        </div>
+
+                        <!-- RetroAchievements Activity -->
+                        <div class="ra-activity-card glass-card" id="ra-activity-card">
+                            <div class="ra-activity-header">
+                                <div class="ra-act-icon-wrap">
+                                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                </div>
+                                <div>
+                                    <h3>RetroAchievements</h3>
+                                    <span class="ra-act-user" id="ra-act-user">--</span>
+                                </div>
+                                <div class="ra-act-rank" id="ra-act-rank"></div>
+                            </div>
+                            <div class="ra-act-summary">
+                                <div class="ra-act-stat">
+                                    <span class="ra-act-stat-val" id="ra-act-points">0</span>
+                                    <span class="ra-act-stat-lbl">Points</span>
+                                </div>
+                                <div class="ra-act-stat">
+                                    <span class="ra-act-stat-val" id="ra-act-truepoints">0</span>
+                                    <span class="ra-act-stat-lbl">True Points</span>
+                                </div>
+                                <div class="ra-act-stat">
+                                    <span class="ra-act-stat-val" id="ra-act-recent">0</span>
+                                    <span class="ra-act-stat-lbl">Last 24h</span>
+                                </div>
+                            </div>
+                            <div class="ra-act-achievements" id="ra-act-achievements">
+                                <div class="ra-act-empty">No recent achievements</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Collection Metrics -->
+                <div class="collection-metrics-panel glass-card" id="collection-metrics">
+                    <h3>
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        Collection Overview
+                    </h3>
+                    <div class="collection-summary-grid">
+                        <div class="coll-stat">
+                            <span class="coll-stat-val" id="coll-total-systems">-</span>
+                            <span class="coll-stat-lbl">Systems</span>
+                        </div>
+                        <div class="coll-stat">
+                            <span class="coll-stat-val" id="coll-total-games">-</span>
+                            <span class="coll-stat-lbl">Games</span>
+                        </div>
+                        <div class="coll-stat">
+                            <span class="coll-stat-val" id="coll-total-played">-</span>
+                            <span class="coll-stat-lbl">Played</span>
+                        </div>
+                        <div class="coll-stat">
+                            <span class="coll-stat-val" id="coll-completion">-</span>
+                            <span class="coll-stat-lbl">Completion</span>
+                        </div>
+                        <div class="coll-stat">
+                            <span class="coll-stat-val" id="coll-playtime">-</span>
+                            <span class="coll-stat-lbl">Total Play Time</span>
+                        </div>
+                    </div>
+                    <div class="collection-systems-grid" id="collection-systems-grid">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+
+                <!-- Quick Actions Panel -->
+                <div class="quick-actions-panel" id="quick-actions">
+                    <div class="last-scan-summary" id="last-scan-summary">
+                        <div class="last-scan-header">
+                            <h3>Last Scan</h3>
+                            <span class="last-scan-time" id="last-scan-time">No scans yet</span>
+                        </div>
+                        <div class="last-scan-stats">
+                            <div class="scan-stat">
+                                <span class="scan-stat-value" id="last-scan-dir">-</span>
+                                <span class="scan-stat-label">Directory</span>
+                            </div>
+                            <div class="scan-stat">
+                                <span class="scan-stat-value" id="last-scan-files">0</span>
+                                <span class="scan-stat-label">Files Scanned</span>
+                            </div>
+                            <div class="scan-stat highlight">
+                                <span class="scan-stat-value" id="last-scan-dupes">0</span>
+                                <span class="scan-stat-label">Duplicates Found</span>
+                            </div>
+                            <div class="scan-stat">
+                                <span class="scan-stat-value" id="last-scan-cross">0</span>
+                                <span class="scan-stat-label">Cross-Platform</span>
+                            </div>
+                        </div>
+                        <div class="quick-action-buttons">
+                            <button class="btn action-btn primary" id="go-to-duplicates" onclick="app.goToDuplicates()">
+                                <span class="btn-icon">🔍</span>
+                                <span>View Duplicates</span>
+                            </button>
+                            <button class="btn action-btn" id="rescan-btn" onclick="app.rescanLast()">
+                                <span class="btn-icon">🔄</span>
+                                <span>Rescan</span>
+                            </button>
+                            <button class="btn action-btn" id="new-scan-btn" onclick="app.switchView('scan')">
+                                <span class="btn-icon">📂</span>
+                                <span>New Scan</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-files">-</div>
+                        <div class="stat-label">Total Files</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-duplicates">-</div>
+                        <div class="stat-label">Similar Names</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-exact-duplicates">-</div>
+                        <div class="stat-label">Exact Dupes</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-moved">-</div>
+                        <div class="stat-label">Moved</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-size">-</div>
+                        <div class="stat-label">Total Size</div>
+                    </div>
+                </div>
+
+                <!-- Connected Services Status -->
+                <div class="services-panel">
+                    <h3>Connected Services</h3>
+                    <div class="services-grid">
+                        <!-- RetroAchievements -->
+                        <div class="service-card" id="svc-ra">
+                            <div class="service-header">
+                                <div class="service-icon ra-icon">RA</div>
+                                <div class="service-info">
+                                    <div class="service-name">RetroAchievements</div>
+                                    <div class="service-status" id="svc-ra-status">Checking...</div>
+                                </div>
+                                <div class="service-dot" id="svc-ra-dot"></div>
+                            </div>
+                            <div class="service-stats">
+                                <div class="service-stat"><span class="service-stat-val" id="svc-ra-user">-</span><span class="service-stat-lbl">User</span></div>
+                                <div class="service-stat"><span class="service-stat-val" id="svc-ra-verified">0</span><span class="service-stat-lbl">Verified</span></div>
+                                <div class="service-stat"><span class="service-stat-val" id="svc-ra-supported">0</span><span class="service-stat-lbl">RA Games</span></div>
+                                <div class="service-stat"><span class="service-stat-val" id="svc-ra-unverified">0</span><span class="service-stat-lbl">Pending</span></div>
+                            </div>
+                        </div>
+
+                        <!-- ScreenScraper -->
+                        <div class="service-card" id="svc-ss">
+                            <div class="service-header">
+                                <div class="service-icon ss-icon">SS</div>
+                                <div class="service-info">
+                                    <div class="service-name">ScreenScraper</div>
+                                    <div class="service-status" id="svc-ss-status">Checking...</div>
+                                </div>
+                                <div class="service-dot" id="svc-ss-dot"></div>
+                            </div>
+                            <div class="service-stats">
+                                <div class="service-stat"><span class="service-stat-val" id="svc-ss-user">-</span><span class="service-stat-lbl">User</span></div>
+                                <div class="service-stat"><span class="service-stat-val" id="svc-ss-level">-</span><span class="service-stat-lbl">Level</span></div>
+                                <div class="service-stat"><span class="service-stat-val" id="svc-ss-threads">-</span><span class="service-stat-lbl">Threads</span></div>
+                                <div class="service-stat"><span class="service-stat-val" id="svc-ss-requests">-</span><span class="service-stat-lbl">Reqs Today</span></div>
+                            </div>
+                            <div class="service-quota">
+                                <div class="service-quota-bar"><div class="service-quota-fill" id="svc-ss-quota-fill" style="width:0%"></div></div>
+                                <span class="service-quota-label" id="svc-ss-quota-label">0 / 0 requests</span>
+                            </div>
+                        </div>
+
+                        <!-- RetroNAS -->
+                        <div class="service-card" id="svc-nas">
+                            <div class="service-header">
+                                <div class="service-icon nas-icon">NAS</div>
+                                <div class="service-info">
+                                    <div class="service-name">RetroNAS</div>
+                                    <div class="service-status" id="svc-nas-status">Checking...</div>
+                                </div>
+                                <div class="service-dot" id="svc-nas-dot"></div>
+                            </div>
+                            <div class="service-stats">
+                                <div class="service-stat"><span class="service-stat-val" id="svc-nas-ip">-</span><span class="service-stat-lbl">Address</span></div>
+                                <div class="service-stat"><span class="service-stat-val" id="svc-nas-files">0</span><span class="service-stat-lbl">Files</span></div>
+                                <div class="service-stat"><span class="service-stat-val" id="svc-nas-size">-</span><span class="service-stat-lbl">Size</span></div>
+                                <div class="service-stat"><span class="service-stat-val" id="svc-nas-systems">0</span><span class="service-stat-lbl">Systems</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Space Usage Visualization -->
+                <div class="space-panel">
+                    <h3>Space Analysis</h3>
+                    <div class="space-chart">
+                        <div class="space-bar-container">
+                            <div class="space-bar-label">
+                                <span>Total Scanned</span>
+                                <span id="space-total-value">-</span>
+                            </div>
+                            <div class="space-bar total">
+                                <div class="space-bar-fill" id="space-total-bar" style="width: 100%"></div>
+                            </div>
+                        </div>
+                        <div class="space-bar-container">
+                            <div class="space-bar-label">
+                                <span>Wasted by Duplicates</span>
+                                <span id="space-wasted-value">-</span>
+                            </div>
+                            <div class="space-bar wasted">
+                                <div class="space-bar-fill" id="space-wasted-bar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="space-bar-container">
+                            <div class="space-bar-label">
+                                <span>Space Saved</span>
+                                <span id="space-saved-value">-</span>
+                            </div>
+                            <div class="space-bar saved">
+                                <div class="space-bar-fill" id="space-saved-bar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="space-summary">
+                        <div class="space-stat recoverable">
+                            <div class="space-stat-icon">!</div>
+                            <div class="space-stat-info">
+                                <div class="space-stat-value" id="space-recoverable-value">-</div>
+                                <div class="space-stat-label">Recoverable Space</div>
+                            </div>
+                        </div>
+                        <div class="space-stat saved-stat">
+                            <div class="space-stat-icon">+</div>
+                            <div class="space-stat-info">
+                                <div class="space-stat-value" id="space-already-saved-value">-</div>
+                                <div class="space-stat-label">Already Saved</div>
+                            </div>
+                        </div>
+                        <div class="space-stat groups">
+                            <div class="space-stat-icon">#</div>
+                            <div class="space-stat-info">
+                                <div class="space-stat-value" id="space-groups-value">-</div>
+                                <div class="space-stat-label">Duplicate Groups</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Size Breakdown -->
+                <div class="breakdown-panel">
+                    <h3>Size Breakdown by Format</h3>
+                    <div class="breakdown-chart" id="size-breakdown">
+                        <div class="loading">Loading breakdown...</div>
+                    </div>
+                </div>
+
+                <!-- RetroAchievements Stats -->
+                <div class="ra-stats-panel" id="ra-stats-panel">
+                    <h3>RetroAchievements Verification</h3>
+                    <div class="ra-stats-grid">
+                        <div class="ra-stat supported">
+                            <div class="ra-stat-icon">
+                                <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+                                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                                </svg>
+                            </div>
+                            <div class="ra-stat-info">
+                                <span class="ra-stat-value" id="ra-supported-count">-</span>
+                                <span class="ra-stat-label">RA Supported</span>
+                            </div>
+                        </div>
+                        <div class="ra-stat not-supported">
+                            <div class="ra-stat-icon">
+                                <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+                                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11H7v-2h10v2z"/>
+                                </svg>
+                            </div>
+                            <div class="ra-stat-info">
+                                <span class="ra-stat-value" id="ra-not-supported-count">-</span>
+                                <span class="ra-stat-label">Not Supported</span>
+                            </div>
+                        </div>
+                        <div class="ra-stat unverified">
+                            <div class="ra-stat-icon">
+                                <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+                                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                                </svg>
+                            </div>
+                            <div class="ra-stat-info">
+                                <span class="ra-stat-value" id="ra-unverified-count">-</span>
+                                <span class="ra-stat-label">Unverified</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ra-status-bar">
+                        <div class="ra-status-fill supported" id="ra-bar-supported" style="width: 0%"></div>
+                        <div class="ra-status-fill not-supported" id="ra-bar-not-supported" style="width: 0%"></div>
+                    </div>
+                    <div class="ra-config-status">
+                        <span id="ra-enabled-status" class="ra-badge disabled">RA Disabled</span>
+                    </div>
+                </div>
+
+                <div class="info-panel">
+                    <h3>System Info</h3>
+                    <pre id="system-info">Loading...</pre>
+                </div>
+            </section>
+
+            <!-- Scan View -->
+            <section id="scan-view" class="view">
+                <h2>Scan Directory</h2>
+                <div class="scan-form">
+                    <input type="text" id="scan-directory" placeholder="/path/to/directory" />
+                    <button id="detect-systems" class="btn secondary">Detect Systems</button>
+                    <label>
+                        <input type="checkbox" id="full-scan" />
+                        Force full rescan
+                    </label>
+                    <button id="start-scan" class="btn scan-btn">Start Scan</button>
+                </div>
+
+                <!-- System Selection Panel -->
+                <div id="system-selection-panel" class="system-selection hidden">
+                    <div class="system-selection-header">
+                        <h3>Detected Systems</h3>
+                        <div class="system-selection-controls">
+                            <button id="select-all-systems" class="btn small">Select All</button>
+                            <button id="deselect-all-systems" class="btn small secondary">Deselect All</button>
+                        </div>
+                        <div class="system-selection-stats">
+                            <span id="selected-systems-count">0</span> systems selected
+                            (<span id="selected-files-count">0</span> files, <span id="selected-size">0 MB</span>)
+                        </div>
+                    </div>
+                    <div id="system-checkboxes" class="system-checkboxes">
+                        <!-- Checkboxes will be populated dynamically -->
+                    </div>
+                </div>
+
+                <!-- Scan Suggestions -->
+                <div class="scan-suggestions">
+                    <!-- Removable Media -->
+                    <div class="suggestion-section" id="removable-section">
+                        <h3>Removable Media</h3>
+                        <div class="suggestion-list" id="removable-list">
+                            <div class="loading">Detecting devices...</div>
+                        </div>
+                    </div>
+
+                    <!-- Scan History -->
+                    <div class="suggestion-section" id="history-section">
+                        <h3>Previously Scanned</h3>
+                        <div class="suggestion-list" id="history-list">
+                            <div class="loading">Loading history...</div>
+                        </div>
+                    </div>
+
+                    <!-- Common Paths -->
+                    <div class="suggestion-section" id="common-section">
+                        <h3>Common Locations</h3>
+                        <div class="suggestion-list" id="common-list">
+                            <div class="loading">Checking paths...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="scan-progress" class="progress-panel hidden">
+                    <div class="progress-counter">
+                        <span class="count" id="progress-processed">0</span>
+                        <span class="label">of <span id="progress-total">0</span> files processed</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <div class="progress-text">
+                        <span id="progress-status">Idle</span>
+                        <span id="progress-percent">0%</span>
+                    </div>
+                    <div class="current-file" id="current-file-display">
+                        <div class="spinner"></div>
+                        <span class="filepath" id="progress-current">Waiting...</span>
+                    </div>
+                    <!-- Verbose progress details -->
+                    <div class="verbose-progress" id="verbose-progress">
+                        <div class="verbose-row">
+                            <span class="verbose-label">Step:</span>
+                            <span class="verbose-value" id="progress-step">Initializing...</span>
+                        </div>
+                        <div class="verbose-row">
+                            <span class="verbose-label">Storage:</span>
+                            <span class="verbose-value" id="progress-storage">-</span>
+                            <span class="verbose-label" style="margin-left: 20px;">Threads:</span>
+                            <span class="verbose-value" id="progress-threads">-</span>
+                        </div>
+                        <div class="verbose-row">
+                            <span class="verbose-label">Hashed:</span>
+                            <span class="verbose-value" id="progress-hashed">0</span>
+                            <span class="verbose-label" style="margin-left: 20px;">Last Hash:</span>
+                            <span class="verbose-value mono" id="progress-last-hash">-</span>
+                        </div>
+                        <div class="verbose-row">
+                            <span class="verbose-label">Serial:</span>
+                            <span class="verbose-value mono" id="progress-serial">-</span>
+                        </div>
+                        <div class="verbose-row ra-row">
+                            <span class="verbose-label">RA Checked:</span>
+                            <span class="verbose-value" id="progress-ra-checked">0</span>
+                            <span class="verbose-label" style="margin-left: 20px;">RA Matched:</span>
+                            <span class="verbose-value" id="progress-ra-matched">0</span>
+                        </div>
+                        <div class="verbose-row ra-row">
+                            <span class="verbose-label">RA Result:</span>
+                            <span class="verbose-value" id="progress-ra-result">-</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="scan-result" class="result-panel hidden"></div>
+            </section>
+
+            <!-- Duplicates View -->
+            <section id="duplicates-view" class="view">
+                <h2>Duplicate Files</h2>
+                <div class="duplicates-controls">
+                    <input type="text" id="duplicates-directory" placeholder="/path/to/directory" />
+                    <button id="load-duplicates" class="btn">Load Duplicates</button>
+                    <div class="view-toggle">
+                        <button class="view-btn active" data-view-mode="gallery" title="Gallery View">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                <rect x="3" y="3" width="7" height="7" rx="1"/>
+                                <rect x="14" y="3" width="7" height="7" rx="1"/>
+                                <rect x="3" y="14" width="7" height="7" rx="1"/>
+                                <rect x="14" y="14" width="7" height="7" rx="1"/>
+                            </svg>
+                        </button>
+                        <button class="view-btn" data-view-mode="list" title="List View">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                <rect x="3" y="4" width="18" height="4" rx="1"/>
+                                <rect x="3" y="10" width="18" height="4" rx="1"/>
+                                <rect x="3" y="16" width="18" height="4" rx="1"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Action Settings Panel -->
+                <div id="duplicates-action-panel" class="action-panel hidden">
+                    <div class="action-header">
+                        <h3>Duplicate Actions</h3>
+                        <span class="selected-count">0 selected</span>
+                    </div>
+                    <div class="action-options">
+                        <div class="action-mode">
+                            <label class="action-radio">
+                                <input type="radio" name="duplicate-action" value="archive" checked />
+                                <span class="radio-mark"></span>
+                                <span class="radio-label">
+                                    <strong>Archive</strong>
+                                    <small>Move duplicates to archive folder</small>
+                                </span>
+                            </label>
+                            <label class="action-radio">
+                                <input type="radio" name="duplicate-action" value="delete" />
+                                <span class="radio-mark"></span>
+                                <span class="radio-label">
+                                    <strong>Delete</strong>
+                                    <small>Permanently remove duplicates</small>
+                                </span>
+                            </label>
+                        </div>
+                        <div class="archive-location" id="archive-location-section">
+                            <label>
+                                Archive Location:
+                                <input type="text" id="archive-location" placeholder="~/.local/share/duper/duplicates" />
+                            </label>
+                        </div>
+                        <div class="action-buttons">
+                            <button id="process-selected" class="btn warning" disabled>
+                                Process Selected (<span id="selected-count-btn">0</span>)
+                            </button>
+                            <button id="select-all-duplicates" class="btn">Select All</button>
+                            <button id="deselect-all-duplicates" class="btn secondary">Deselect All</button>
+                            <label class="dry-run-toggle">
+                                <input type="checkbox" id="duplicates-dry-run" />
+                                <span>Dry Run (preview only)</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="duplicates-summary" class="summary-panel"></div>
+                <div id="duplicates-list" class="duplicates-list"></div>
+                <div id="duplicates-gallery" class="duplicates-gallery hidden"></div>
+            </section>
+
+            <!-- Moved Files View -->
+            <section id="moved-view" class="view">
+                <h2>Moved Files</h2>
+                <div class="moved-controls">
+                    <button id="load-moved" class="btn">Refresh</button>
+                    <button id="restore-all" class="btn warning">Restore All</button>
+                </div>
+                <div id="moved-list" class="moved-list"></div>
+            </section>
+
+            <!-- Media View -->
+            <section id="media-view" class="view">
+                <h2>Media Cleanup</h2>
+                <p class="view-description">Find and clean up orphaned media files (videos, screenshots, boxart) associated with ROMs.</p>
+
+                <div class="media-tabs">
+                    <button class="media-tab active" data-media-tab="orphaned">Orphaned Media</button>
+                    <button class="media-tab" data-media-tab="moved-roms">Moved ROM Media</button>
+                </div>
+
+                <!-- Orphaned Media Tab -->
+                <div id="media-orphaned-tab" class="media-tab-content active">
+                    <div class="media-controls">
+                        <input type="text" id="media-directory" placeholder="/path/to/rom/directory" />
+                        <button id="find-orphaned-media" class="btn">Find Orphaned Media</button>
+                    </div>
+                </div>
+
+                <!-- Moved ROM Media Tab -->
+                <div id="media-moved-roms-tab" class="media-tab-content">
+                    <div class="media-controls">
+                        <button id="find-moved-rom-media" class="btn">Find Media for Moved ROMs</button>
+                    </div>
+                </div>
+
+                <!-- Media Results -->
+                <div id="media-summary" class="summary-panel hidden"></div>
+                <div id="media-list" class="media-list"></div>
+
+                <!-- Media Cleanup Controls -->
+                <div id="media-cleanup-controls" class="media-cleanup-controls hidden">
+                    <h3>Cleanup Options</h3>
+                    <label>
+                        <input type="checkbox" id="media-dry-run" checked />
+                        Dry run (preview only)
+                    </label>
+                    <label>
+                        Move to directory (leave empty to delete):
+                        <input type="text" id="media-move-to" placeholder="/path/to/backup" />
+                    </label>
+                    <button id="cleanup-media" class="btn warning">Clean Up Media</button>
+                </div>
+            </section>
+
+            <!-- Saves View -->
+            <section id="saves-view" class="view">
+                <h2>Save Game Management</h2>
+                <p class="view-description">
+                    Find and preserve orphaned save games and save states.
+                    <strong>Saves are NEVER deleted</strong> - only moved to a safe location.
+                </p>
+
+                <div class="saves-tabs">
+                    <button class="saves-tab active" data-saves-tab="orphaned">Orphaned Saves</button>
+                    <button class="saves-tab" data-saves-tab="moved-roms">Moved ROM Saves</button>
+                </div>
+
+                <!-- Orphaned Saves Tab -->
+                <div id="saves-orphaned-tab" class="saves-tab-content active">
+                    <div class="saves-controls">
+                        <input type="text" id="saves-directory" placeholder="/path/to/rom/directory" />
+                        <button id="find-orphaned-saves" class="btn">Find Orphaned Saves</button>
+                    </div>
+                </div>
+
+                <!-- Moved ROM Saves Tab -->
+                <div id="saves-moved-roms-tab" class="saves-tab-content">
+                    <div class="saves-controls">
+                        <button id="find-moved-rom-saves" class="btn">Find Saves for Moved ROMs</button>
+                    </div>
+                </div>
+
+                <!-- Saves Results -->
+                <div id="saves-summary" class="summary-panel hidden"></div>
+                <div id="saves-list" class="saves-list"></div>
+
+                <!-- Saves Preserve Controls -->
+                <div id="saves-preserve-controls" class="saves-preserve-controls hidden">
+                    <h3>Preserve Options</h3>
+                    <p class="preserve-note">Saves will be MOVED (never deleted) to preserve your progress.</p>
+                    <label>
+                        <input type="checkbox" id="saves-dry-run" checked />
+                        Dry run (preview only)
+                    </label>
+                    <label>
+                        Move saves to (REQUIRED):
+                        <input type="text" id="saves-move-to" placeholder="/path/to/preserved_saves" />
+                    </label>
+                    <button id="preserve-saves" class="btn primary">Preserve Saves</button>
+                </div>
+            </section>
+
+            <!-- RetroNAS View -->
+            <section id="retronas-view" class="view">
+                <h2>RetroNAS Dashboard</h2>
+                <div class="retronas-view-content">
+                    <!-- Collection overview stats -->
+                    <div class="retronas-stats-grid">
+                        <div class="retronas-stat-card">
+                            <div class="retronas-stat-value" id="retronas-total-games">-</div>
+                            <div class="retronas-stat-label">Total Games</div>
+                        </div>
+                        <div class="retronas-stat-card">
+                            <div class="retronas-stat-value" id="retronas-total-size">-</div>
+                            <div class="retronas-stat-label">Total Size</div>
+                        </div>
+                        <div class="retronas-stat-card">
+                            <div class="retronas-stat-value" id="retronas-systems-count">-</div>
+                            <div class="retronas-stat-label">Systems</div>
+                        </div>
+                        <div class="retronas-stat-card">
+                            <div class="retronas-stat-value" id="retronas-ra-verified">-</div>
+                            <div class="retronas-stat-label">RA Verified</div>
+                        </div>
+                    </div>
+
+                    <!-- Per-system breakdown -->
+                    <h3 class="retronas-section-header">Per-System Breakdown</h3>
+                    <div class="retronas-systems-grid" id="retronas-systems-grid">
+                        <p class="placeholder-text">Loading system data...</p>
+                    </div>
+
+                    <!-- Storage usage -->
+                    <div class="retronas-storage-panel">
+                        <h3 class="retronas-section-header">Storage Usage</h3>
+                        <div class="retronas-storage-labels">
+                            <span id="retronas-storage-used">- used</span>
+                            <span id="retronas-storage-total">- total</span>
+                        </div>
+                        <div class="retronas-storage-bar">
+                            <div class="retronas-storage-fill" id="retronas-storage-fill" style="width: 0%"></div>
+                        </div>
+                        <div class="retronas-storage-labels">
+                            <span id="retronas-storage-free">- free</span>
+                            <span id="retronas-storage-percent">0%</span>
+                        </div>
+                    </div>
+
+                    <!-- Auto-manage Toggle -->
+                    <div class="auto-manage-panel" id="auto-manage-panel">
+                        <div class="auto-manage-header">
+                            <h3 class="retronas-section-header">Auto-manage</h3>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="auto-manage-toggle" onchange="app.toggleAutoManage(this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <p class="auto-manage-desc">Automatically chain ROM transfer, media transfer, and acquisition when SD card is detected.</p>
+                        <div class="auto-manage-timeline" id="auto-manage-timeline"></div>
+                    </div>
+
+                    <!-- Unified Operations Panel -->
+                    <h3 class="retronas-section-header">Operations</h3>
+                    <div class="ops-panel" id="ops-panel">
+
+                        <!-- ROM Transfer Operation Card -->
+                        <div class="ops-card" id="ops-rom-transfer" data-op="rom-transfer">
+                            <div class="ops-card-header" onclick="app.toggleOpsCard('ops-rom-transfer')">
+                                <span class="ops-status-icon" id="ops-rom-status-icon">
+                                    <svg class="ops-icon-idle" viewBox="0 0 20 20" width="18" height="18"><circle cx="10" cy="10" r="8" fill="none" stroke="var(--text-muted)" stroke-width="1.5"/></svg>
+                                </span>
+                                <span class="ops-name">ROM Transfer</span>
+                                <div class="ops-progress-mini">
+                                    <div class="ops-progress-mini-bar"><div class="ops-progress-mini-fill" id="ops-rom-mini-fill" style="width:0%"></div></div>
+                                    <span class="ops-pct" id="ops-rom-pct">-</span>
+                                </div>
+                                <span class="ops-chevron">&#9660;</span>
+                            </div>
+                            <div class="ops-card-body" id="ops-rom-transfer-body">
+                                <div class="ops-detail-grid">
+                                    <div class="ops-detail"><span class="ops-detail-label">File</span><span class="ops-detail-value" id="ops-rom-file">-</span></div>
+                                    <div class="ops-detail"><span class="ops-detail-label">Speed</span><span class="ops-detail-value" id="ops-rom-speed">-</span></div>
+                                    <div class="ops-detail"><span class="ops-detail-label">Files</span><span class="ops-detail-value" id="ops-rom-files">-</span></div>
+                                    <div class="ops-detail"><span class="ops-detail-label">Skipped</span><span class="ops-detail-value" id="ops-rom-skipped">-</span></div>
+                                    <div class="ops-detail"><span class="ops-detail-label">Size</span><span class="ops-detail-value" id="ops-rom-size">-</span></div>
+                                    <div class="ops-detail"><span class="ops-detail-label">ETA</span><span class="ops-detail-value" id="ops-rom-eta">-</span></div>
+                                </div>
+                                <div class="ops-progress-bar"><div class="ops-progress-fill" id="ops-rom-fill" style="width:0%"></div></div>
+                                <div class="ops-systems-row">
+                                    <div id="ops-rom-systems-done" class="transfer-systems-done"></div>
+                                    <div id="ops-rom-systems-remaining" class="transfer-systems-remaining"></div>
+                                </div>
+
+                                <!-- File fly animation lane -->
+                                <div class="transfer-lane" id="transfer-lane"></div>
+
+                                <!-- Gamification row: ring + XP + combo -->
+                                <div class="transfer-gamify-row">
+                                    <div class="transfer-ring" id="transfer-ring">
+                                        <svg width="56" height="56" viewBox="0 0 56 56">
+                                            <circle class="ring-bg" cx="28" cy="28" r="24"></circle>
+                                            <circle class="ring-fill" id="transfer-ring-fill" cx="28" cy="28" r="24"
+                                                stroke-dasharray="150.8"
+                                                stroke-dashoffset="150.8"></circle>
+                                        </svg>
+                                        <span class="ring-text" id="transfer-ring-text">0%</span>
+                                    </div>
+                                    <div class="transfer-xp" id="transfer-xp">
+                                        <span class="xp-label">XP</span>
+                                        <span class="xp-value" id="transfer-xp-value">0</span>
+                                        <span class="xp-level" id="transfer-xp-level">LVL 1</span>
+                                    </div>
+                                    <div class="transfer-combo" id="transfer-combo">
+                                        <span class="combo-count" id="transfer-combo-count">0</span>
+                                        <span>combo</span>
+                                    </div>
+                                </div>
+
+                                <!-- Completion badges -->
+                                <div id="transfer-badges" style="display:flex; gap:4px; flex-wrap:wrap; margin-top:6px;"></div>
+
+                                <!-- Transfer log -->
+                                <div class="transfer-log" id="transfer-log">
+                                    <div class="transfer-log-header">Recent Transfers</div>
+                                </div>
+
+                                <div class="ops-card-actions">
+                                    <button class="btn btn-primary btn-small" id="ops-rom-start-btn" onclick="window.duper?.startTransfer()">Start ROM Transfer</button>
+                                    <button class="btn btn-danger btn-small hidden" id="ops-rom-cancel-btn" onclick="window.duper?.cancelTransfer()">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Media Transfer Operation Card -->
+                        <div class="ops-card" id="ops-media-transfer" data-op="media-transfer">
+                            <div class="ops-card-header" onclick="app.toggleOpsCard('ops-media-transfer')">
+                                <span class="ops-status-icon" id="ops-media-status-icon">
+                                    <svg class="ops-icon-idle" viewBox="0 0 20 20" width="18" height="18"><circle cx="10" cy="10" r="8" fill="none" stroke="var(--text-muted)" stroke-width="1.5"/></svg>
+                                </span>
+                                <span class="ops-name">Media Transfer</span>
+                                <div class="ops-progress-mini">
+                                    <div class="ops-progress-mini-bar"><div class="ops-progress-mini-fill ops-media-accent" id="ops-media-mini-fill" style="width:0%"></div></div>
+                                    <span class="ops-pct" id="ops-media-pct">-</span>
+                                </div>
+                                <span class="ops-chevron">&#9660;</span>
+                            </div>
+                            <div class="ops-card-body collapsed" id="ops-media-transfer-body">
+                                <div class="ops-detail-grid">
+                                    <div class="ops-detail"><span class="ops-detail-label">File</span><span class="ops-detail-value" id="ops-media-file">-</span></div>
+                                    <div class="ops-detail"><span class="ops-detail-label">Speed</span><span class="ops-detail-value" id="ops-media-speed">-</span></div>
+                                    <div class="ops-detail"><span class="ops-detail-label">Files</span><span class="ops-detail-value" id="ops-media-files">-</span></div>
+                                    <div class="ops-detail"><span class="ops-detail-label">Skipped</span><span class="ops-detail-value" id="ops-media-skipped">-</span></div>
+                                    <div class="ops-detail"><span class="ops-detail-label">Size</span><span class="ops-detail-value" id="ops-media-size">-</span></div>
+                                    <div class="ops-detail"><span class="ops-detail-label">ETA</span><span class="ops-detail-value" id="ops-media-eta">-</span></div>
+                                </div>
+                                <div class="ops-progress-bar ops-media-accent"><div class="ops-progress-fill ops-media-accent" id="ops-media-fill" style="width:0%"></div></div>
+                                <div class="ops-systems-row">
+                                    <div id="ops-media-systems-done" class="transfer-systems-done"></div>
+                                    <div id="ops-media-systems-remaining" class="transfer-systems-remaining"></div>
+                                </div>
+                                <div class="ops-card-actions">
+                                    <button class="btn btn-primary btn-small" id="ops-media-start-btn" style="background: linear-gradient(135deg, #e0b830, #f0d060); border-color: #e0b830;" onclick="window.duper?.startMediaTransfer()">Start Media Transfer</button>
+                                    <button class="btn btn-danger btn-small hidden" id="ops-media-cancel-btn" onclick="window.duper?.cancelMediaTransfer()">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </section>
+
+            <!-- Acquisition View -->
+            <section id="acquisition-view" class="view">
+                <h2>Game Acquisition</h2>
+                <p class="view-subtitle">Download game collections from archive.org directly to RetroNAS</p>
+
+                <!-- Global Stats Bar -->
+                <div class="acq-global-stats" id="acq-global-stats">
+                    <div class="acq-global-stat" data-stat="files">
+                        <div class="acq-stat-icon">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        </div>
+                        <span class="acq-global-stat-value acq-counter" id="acq-stat-total-files" data-value="0">0</span>
+                        <span class="acq-global-stat-label">Files Acquired</span>
+                    </div>
+                    <div class="acq-global-stat" data-stat="size">
+                        <div class="acq-stat-icon">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1" fill="currentColor"/><circle cx="6" cy="18" r="1" fill="currentColor"/></svg>
+                        </div>
+                        <span class="acq-global-stat-value acq-counter" id="acq-stat-total-size" data-value="0">-</span>
+                        <span class="acq-global-stat-label">Downloaded</span>
+                    </div>
+                    <div class="acq-global-stat" data-stat="active">
+                        <div class="acq-stat-icon">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        </div>
+                        <div class="acq-stat-active-wrap">
+                            <span class="acq-global-stat-value acq-counter" id="acq-stat-active" data-value="0">0</span>
+                            <span class="acq-active-pulse" id="acq-active-pulse"></span>
+                        </div>
+                        <span class="acq-global-stat-label">Active Downloads</span>
+                    </div>
+                    <div class="acq-global-stat" data-stat="speed">
+                        <div class="acq-stat-icon">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                        </div>
+                        <span class="acq-global-stat-value acq-counter acq-speed-value" id="acq-stat-speed" data-value="0">-</span>
+                        <span class="acq-global-stat-label">Total Speed</span>
+                    </div>
+                </div>
+
+                <!-- Active Downloads - Hero Section -->
+                <h3 class="acq-section-header">
+                    <div class="acq-section-title">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span>Active Downloads</span>
+                    </div>
+                    <span class="acq-active-count" id="acq-active-count"></span>
+                </h3>
+                <div class="acq-active-jobs" id="acq-active-jobs">
+                    <p class="placeholder-text">No active downloads</p>
+                </div>
+
+                <!-- Download Feed - Real-time Log -->
+                <h3 class="acq-section-header">
+                    <div class="acq-section-title">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                        <span>Download Feed</span>
+                    </div>
+                    <span class="acq-feed-count" id="acq-feed-count"></span>
+                </h3>
+                <div class="acq-download-feed" id="acq-download-feed">
+                    <p class="placeholder-text">No recent downloads</p>
+                </div>
+
+                <!-- Collection Cards Grid -->
+                <h3 class="acq-section-header">
+                    <div class="acq-section-title">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                        <span>Collections</span>
+                    </div>
+                    <span class="acq-collection-count" id="acq-collection-count"></span>
+                </h3>
+                <div class="acq-collections" id="acq-collections">
+                    <div class="loading">Loading collections...</div>
+                </div>
+
+                <!-- Job History -->
+                <h3 class="acq-section-header">
+                    <div class="acq-section-title">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <span>History</span>
+                    </div>
+                </h3>
+                <div class="acq-jobs" id="acq-job-history">
+                    <p class="placeholder-text">No previous downloads</p>
+                </div>
+            </section>
+
+            <!-- Games View -->
+            <section id="games-view" class="view">
+                <h2>Game Library</h2>
+                <div class="games-toolbar">
+                    <div class="games-filter">
+                        <label for="games-system-filter">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                            System:
+                        </label>
+                        <select id="games-system-filter" onchange="app.filterGamesBySystem(this.value)">
+                            <option value="">All Systems</option>
+                        </select>
+                    </div>
+                    <div class="games-filter">
+                        <label for="games-sort">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+                            Sort:
+                        </label>
+                        <select id="games-sort" onchange="app.sortGames(this.value)">
+                            <option value="name">Name</option>
+                            <option value="system">System</option>
+                            <option value="ra">RA Supported</option>
+                        </select>
+                    </div>
+                    <span id="games-count" style="font-size:0.7rem;color:var(--text-muted);font-weight:700;">0 games</span>
+                    <div class="games-search">
+                        <input type="text" id="games-search" placeholder="Search games..." oninput="app.searchGames(this.value)">
+                    </div>
+                </div>
+                <div class="games-view-toggle">
+                    <button class="view-btn active" data-games-view="cards" title="Card View">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <rect x="14" y="14" width="7" height="7" rx="1"/>
+                        </svg>
+                    </button>
+                    <button class="view-btn" data-games-view="list" title="List View">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <rect x="3" y="4" width="18" height="4" rx="1"/>
+                            <rect x="3" y="10" width="18" height="4" rx="1"/>
+                            <rect x="3" y="16" width="18" height="4" rx="1"/>
+                        </svg>
+                    </button>
+                </div>
+                <div id="games-grid" class="games-grid">
+                    <p class="placeholder-text">Select a library to view games.</p>
+                </div>
+            </section>
+
+            <!-- Devices View -->
+            <section id="devices-view" class="view">
+                <h2>Devices</h2>
+                <div class="devices-grid" id="devices-grid">
+                    <div class="device-card" data-device="glassite">
+                        <div class="device-card-header">
+                            <div class="device-icon">
+                                <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+                                </svg>
+                            </div>
+                            <div class="device-info">
+                                <div class="device-name">GLASSITE PC</div>
+                                <div class="device-status-row">
+                                    <span class="device-status-dot" id="device-glassite-dot"></span>
+                                    <span class="device-status-text" id="device-glassite-status">Checking...</span>
+                                </div>
+                            </div>
+                            <span class="device-storage-badge">Network</span>
+                        </div>
+                        <div class="device-card-body">
+                            <div class="device-detail">
+                                <span class="device-detail-label">NAS Mount</span>
+                                <span class="device-detail-value" id="device-glassite-mount">/mnt/retronas</span>
+                            </div>
+                            <div class="device-detail">
+                                <span class="device-detail-label">Offline Games</span>
+                                <span class="device-detail-value" id="device-glassite-offline">-</span>
+                            </div>
+                            <div class="device-detail">
+                                <span class="device-detail-label">Last Sync</span>
+                                <span class="device-detail-value" id="device-glassite-sync">-</span>
+                            </div>
+                        </div>
+                        <div class="device-card-footer">
+                            <button class="btn btn-small" onclick="app.syncDeviceConfigs('glassite')">Sync Configs</button>
+                        </div>
+                    </div>
+
+                    <div class="device-card" data-device="steamdeck">
+                        <div class="device-card-header">
+                            <div class="device-icon">
+                                <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <rect x="1" y="6" width="22" height="12" rx="3"/><circle cx="6" cy="12" r="2"/><rect x="15" y="10" width="4" height="4" rx="1"/><rect x="10" y="8" width="4" height="2" rx="0.5"/>
+                                </svg>
+                            </div>
+                            <div class="device-info">
+                                <div class="device-name">Steam Deck</div>
+                                <div class="device-status-row">
+                                    <span class="device-status-dot" id="device-steamdeck-dot"></span>
+                                    <span class="device-status-text" id="device-steamdeck-status">Checking...</span>
+                                </div>
+                            </div>
+                            <span class="device-storage-badge local">Local</span>
+                        </div>
+                        <div class="device-card-body">
+                            <div class="device-detail">
+                                <span class="device-detail-label">NAS Mount</span>
+                                <span class="device-detail-value" id="device-steamdeck-mount">/run/media/mmcblk0p1</span>
+                            </div>
+                            <div class="device-detail">
+                                <span class="device-detail-label">Offline Games</span>
+                                <span class="device-detail-value" id="device-steamdeck-offline">-</span>
+                            </div>
+                            <div class="device-detail">
+                                <span class="device-detail-label">Last Sync</span>
+                                <span class="device-detail-value" id="device-steamdeck-sync">-</span>
+                            </div>
+                        </div>
+                        <div class="device-card-footer">
+                            <button class="btn btn-small" onclick="app.syncDeviceConfigs('steamdeck')">Sync Configs</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Queue View (hidden from nav, accessible programmatically) -->
+            <section id="queue-view" class="view">
+                <h2>Scan Queue</h2>
+                <div class="queue-controls">
+                    <button class="btn primary" onclick="app.showAddToQueueModal()">Add to Queue</button>
+                    <button class="btn" onclick="app.clearCompletedQueue()">Clear Completed</button>
+                </div>
+                <div class="queue-section">
+                    <h3>Currently Running</h3>
+                    <div id="queue-running" class="queue-item-container">
+                        <p class="placeholder-text">No scan running</p>
+                    </div>
+                </div>
+                <div class="queue-section">
+                    <h3>Pending</h3>
+                    <div id="queue-pending" class="queue-item-container">
+                        <p class="placeholder-text">Queue is empty</p>
+                    </div>
+                </div>
+                <div class="queue-section">
+                    <h3>Completed</h3>
+                    <div id="queue-completed" class="queue-item-container">
+                        <p class="placeholder-text">No completed scans</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Config View -->
+            <section id="config-view" class="view">
+                <h2>Configuration</h2>
+                <div id="config-form" class="config-form">
+                    <h3>Server Settings</h3>
+                    <div class="server-config-section">
+                        <label>
+                            Port
+                            <input type="number" id="cfg-server-port" value="8420" min="1" max="65535" />
+                            <small class="help-text">Server port (requires restart to apply)</small>
+                        </label>
+                        <label>
+                            Host
+                            <input type="text" id="cfg-server-host" value="0.0.0.0" />
+                            <small class="help-text">Bind address (requires restart to apply)</small>
+                        </label>
+                        <label>
+                            <input type="checkbox" id="cfg-web-ui-enabled" checked />
+                            Enable Web UI
+                        </label>
+                        <label>
+                            <input type="checkbox" id="cfg-auth-enabled" />
+                            Enable Authentication
+                        </label>
+                        <label>
+                            API Key
+                            <input type="password" id="cfg-api-key" placeholder="Leave blank to keep current" />
+                            <small class="help-text">Used for authenticated API access</small>
+                        </label>
+                    </div>
+
+                    <h3>Scanner Settings</h3>
+                    <label>
+                        <input type="checkbox" id="cfg-ignore-fodder" />
+                        Ignore fodder files (.txt, .ini, etc.)
+                    </label>
+                    <label>
+                        <input type="checkbox" id="cfg-ignore-video" />
+                        Ignore video files
+                    </label>
+                    <label>
+                        <input type="checkbox" id="cfg-ignore-music" />
+                        Ignore music files
+                    </label>
+                    <label>
+                        <input type="checkbox" id="cfg-ignore-pictures" />
+                        Ignore picture files
+                    </label>
+                    <label>
+                        <input type="checkbox" id="cfg-retroarch-mode" />
+                        RetroArch ROMs mode
+                    </label>
+
+                    <h3>Paths</h3>
+                    <label>
+                        Working Directory
+                        <input type="text" id="cfg-working-dir" />
+                    </label>
+                    <label>
+                        Duplicates Directory
+                        <input type="text" id="cfg-duplicates-dir" />
+                    </label>
+
+                    <h3>RetroAchievements Integration</h3>
+                    <div class="ra-config-section">
+                        <label>
+                            <input type="checkbox" id="cfg-ra-enabled" />
+                            Enable RetroAchievements verification
+                        </label>
+                        <label>
+                            Username
+                            <input type="text" id="cfg-ra-username" placeholder="RetroAchievements username" />
+                        </label>
+                        <label>
+                            API Key
+                            <input type="password" id="cfg-ra-api-key" placeholder="RetroAchievements API key" />
+                            <small class="help-text">Get your API key from <a href="https://retroachievements.org/settings" target="_blank">retroachievements.org/settings</a></small>
+                        </label>
+                        <label>
+                            RA Score Bonus
+                            <input type="number" id="cfg-ra-score-bonus" value="1000" min="0" />
+                            <small class="help-text">Score bonus for RA-supported ROMs (default: 1000)</small>
+                        </label>
+                        <label>
+                            <input type="checkbox" id="cfg-ra-verify-on-scan" />
+                            Automatically verify hashes during scan
+                        </label>
+                        <div class="ra-test-section">
+                            <button id="test-ra-connection" class="btn">Test Connection</button>
+                            <span id="ra-test-result" class="ra-test-result"></span>
+                        </div>
+                    </div>
+
+                    <h3>ScreenScraper Integration</h3>
+                    <div class="ss-config-section">
+                        <label>
+                            <input type="checkbox" id="cfg-ss-enabled" />
+                            Enable ScreenScraper metadata scraping
+                        </label>
+                        <label>
+                            Username
+                            <input type="text" id="cfg-ss-username" placeholder="ScreenScraper username" />
+                        </label>
+                        <label>
+                            Password
+                            <input type="password" id="cfg-ss-password" placeholder="ScreenScraper password" />
+                            <small class="help-text">Your ScreenScraper account password</small>
+                        </label>
+                        <div class="ss-optional-section">
+                            <details>
+                                <summary>Developer Credentials (Optional)</summary>
+                                <label>
+                                    Developer ID
+                                    <input type="text" id="cfg-ss-dev-id" placeholder="Developer ID" />
+                                </label>
+                                <label>
+                                    Developer Password
+                                    <input type="password" id="cfg-ss-dev-password" placeholder="Developer password" />
+                                    <small class="help-text">For higher rate limits (contact ScreenScraper)</small>
+                                </label>
+                            </details>
+                        </div>
+                        <label>
+                            Preferred Region
+                            <select id="cfg-ss-region">
+                                <option value="us">US (USA)</option>
+                                <option value="eu">EU (Europe)</option>
+                                <option value="jp">JP (Japan)</option>
+                                <option value="wor">World</option>
+                            </select>
+                        </label>
+                        <label>
+                            Preferred Language
+                            <select id="cfg-ss-language">
+                                <option value="en">English</option>
+                                <option value="fr">French</option>
+                                <option value="de">German</option>
+                                <option value="es">Spanish</option>
+                                <option value="pt">Portuguese</option>
+                                <option value="it">Italian</option>
+                                <option value="ja">Japanese</option>
+                            </select>
+                        </label>
+                        <h4>Media Downloads</h4>
+                        <div class="ss-media-options">
+                            <label>
+                                <input type="checkbox" id="cfg-ss-box-art" checked />
+                                Box Art
+                            </label>
+                            <label>
+                                <input type="checkbox" id="cfg-ss-screenshot" checked />
+                                Screenshots
+                            </label>
+                            <label>
+                                <input type="checkbox" id="cfg-ss-wheel" checked />
+                                Wheel/Logo
+                            </label>
+                            <label>
+                                <input type="checkbox" id="cfg-ss-video" />
+                                Video (large files)
+                            </label>
+                        </div>
+                        <label>
+                            Media Save Path
+                            <input type="text" id="cfg-ss-media-path" placeholder="Leave empty for default (alongside ROMs)" />
+                            <small class="help-text">Where to save downloaded media</small>
+                        </label>
+                        <div class="ss-test-section">
+                            <button id="test-ss-connection" class="btn">Test Connection</button>
+                            <span id="ss-test-result" class="ss-test-result"></span>
+                        </div>
+                    </div>
+
+                    <button id="save-config" class="btn primary">Save Configuration</button>
+                </div>
+            </section>
+        </main>
+
+        <footer class="duper-footer">
+            <div class="footer-sweep"></div>
+            <div class="footer-left">
+                <span class="footer-version version-rainbow" id="footer-version">v2.3.5</span>
+                <span class="footer-build-type" id="footer-build-type">stable</span>
+                <span class="footer-sep">|</span>
+                <span class="footer-codename" id="footer-codename">RetroNAS</span>
+                <span class="footer-sep">|</span>
+                <span class="footer-platform">linux/x86_64</span>
+                <span class="footer-sep">|</span>
+                <span class="footer-status" id="footer-status">Offline</span>
+            </div>
+            <div class="footer-right">
+                <a href="https://github.com/eurrl/DUPer" target="_blank" rel="noopener" class="footer-link" title="View on GitHub">
+                    <span>GitHub</span>
+                </a>
+                <span class="footer-sep">|</span>
+                <a href="https://FalconTechnix.com" target="_blank" rel="noopener" class="ft-footer-link" title="Falcon Technix">
+                    <span class="ft-label">A Falcon Technix Product</span>
+                </a>
+            </div>
+        </footer>
+    </div>
+
+    <!-- API Key Modal -->
+    <div id="api-key-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2>API Key Required</h2>
+            <p>Enter your API key to connect to the DUPer server.</p>
+            <input type="password" id="api-key-input" placeholder="API Key" />
+            <div class="modal-buttons">
+                <button id="api-key-submit" class="btn primary">Connect</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Library Modal -->
+    <div id="new-library-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2>Create New Library</h2>
+            <div class="modal-form">
+                <label>
+                    Library Name
+                    <input type="text" id="new-library-name" placeholder="e.g., N64 ROMs" />
+                </label>
+                <label>
+                    Root Path
+                    <input type="text" id="new-library-path" placeholder="/path/to/roms" />
+                </label>
+                <label>
+                    Device Type
+                    <select id="new-library-type">
+                        <option value="local">Local</option>
+                        <option value="removable">Removable (SD Card, USB)</option>
+                        <option value="remote">Remote</option>
+                    </select>
+                </label>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn" onclick="app.hideNewLibraryModal()">Cancel</button>
+                <button class="btn primary" onclick="app.createLibrary()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add to Queue Modal -->
+    <div id="add-queue-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2>Add to Scan Queue</h2>
+            <div class="modal-form">
+                <label>
+                    Directory to Scan
+                    <input type="text" id="queue-directory" placeholder="/path/to/scan" />
+                </label>
+                <label>
+                    Priority
+                    <select id="queue-priority">
+                        <option value="0">Normal</option>
+                        <option value="1">High</option>
+                        <option value="2">Urgent</option>
+                    </select>
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="queue-full-scan" />
+                    Full Scan (ignore previous scan data)
+                </label>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn" onclick="app.hideAddToQueueModal()">Cancel</button>
+                <button class="btn primary" onclick="app.addToQueue()">Add to Queue</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Detail Modal -->
+    <div id="game-detail-modal" class="modal hidden game-detail-modal">
+        <div class="game-detail-backdrop" onclick="app.closeGameDetail()"></div>
+        <div class="game-detail-panel">
+            <button class="game-detail-close" onclick="app.closeGameDetail()" title="Close">&times;</button>
+            <div class="game-detail-content" id="game-detail-content">
+                <!-- Filled by JS -->
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

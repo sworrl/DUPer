@@ -1,0 +1,55 @@
+# DUPer Docker Compose Configuration
+# Usage: docker-compose up -d
+
+services:
+  duper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: duper:latest
+    container_name: duper
+    restart: unless-stopped
+    ports:
+      - "8420:8420"
+    volumes:
+      # Persist data and config
+      - duper_data:/data
+      - duper_config:/config
+      # Mount directories you want to scan (add more as needed)
+      # - /path/to/your/roms:/mnt/roms:ro
+      # - /media/external:/mnt/external:ro
+    environment:
+      # Set to your desired API key (generate with: python -c "import secrets; print(secrets.token_urlsafe(32))")
+      - DUPER_API_KEY=${DUPER_API_KEY:-}
+      # Enable/disable authentication
+      - DUPER_AUTH_ENABLED=${DUPER_AUTH_ENABLED:-true}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8420/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  duper_data:
+    name: duper_data
+  duper_config:
+    name: duper_config
+
+# Example usage for SteamDeck:
+#
+# 1. Create docker-compose.override.yml:
+#    services:
+#      duper:
+#        volumes:
+#          - /home/deck/Emulation/roms:/mnt/roms
+#          - /run/media/mmcblk0p1/roms:/mnt/sdcard:ro
+#
+# 2. Set environment:
+#    export DUPER_API_KEY=your-secure-key
+#
+# 3. Start:
+#    docker-compose up -d
+#
+# 4. Access:
+#    http://localhost:8420
